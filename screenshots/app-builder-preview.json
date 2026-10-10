@@ -1,0 +1,36 @@
+{
+  "url": "http://127.0.0.1:8080/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "ClipsAds",
+      "hasCanvas": false,
+      "bodyTextLen": 134,
+      "bodyTextHash": "300e88393f8b851e5bc152bd0f7ed397b5f2ce274bc3cf9535391d4c6c1eb7ec",
+      "bodyTextPrefix": "ClipsAds Descubre, opina y Compra Mejor. Iniciar sesión Registra",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "ClipsAds",
+      "hasCanvas": false,
+      "bodyTextLen": 134,
+      "bodyTextHash": "300e88393f8b851e5bc152bd0f7ed397b5f2ce274bc3cf9535391d4c6c1eb7ec",
+      "bodyTextPrefix": "ClipsAds Descubre, opina y Compra Mejor. Iniciar sesión Registra",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-preview.json"
+}

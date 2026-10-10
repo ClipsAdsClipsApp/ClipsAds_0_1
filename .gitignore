@@ -1,0 +1,9 @@
+node_modules
+.vercel
+.grok
+.clipsads
+.tanstack
+dist
+.vite
+.env
+*.log
