@@ -235,7 +235,7 @@ private fun Onboarding(onEnter: () -> Unit) {
             Text("Clips", color = Fg, fontSize = 34.sp, fontWeight = FontWeight.ExtraBold)
             Text("App", color = Cyan, fontSize = 34.sp, fontWeight = FontWeight.ExtraBold)
         }
-        Text("Descubre, opina y Compra Mejor.", color = Muted, fontSize = 13.sp)
+        Text("Descubre, Elige, Opina y Compra Mejor.", color = Muted, fontSize = 13.sp)
         Spacer(Modifier.height(28.dp))
         OutlinedTextField(
             value = email,

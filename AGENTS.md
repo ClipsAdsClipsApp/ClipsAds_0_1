@@ -153,7 +153,7 @@ missing. Postgres and Better Auth are pre-wired in `src/lib`, **opt-in per app**
   `vite-tanstack-config` preset. Editing? Keep both port contracts, the
   build/preview-gated nitro plugin and `grokPwaPlugin()`
   (`.grok/references/deploy-target.md`).
-- **Never delete or overwrite `public/__grok/`, `server/`, `scripts/grok-pwa-*`**
+- **Never delete or overwrite `public/__clipsads/`, `server/`, `scripts/grok-pwa-*`**
   (platform chrome; `?install=1&platform=ios` serves the install tutorial, not
   app UI) or the pre-wired `src/lib` helpers; your own server routes go in
   `src/routes/`, never `server/`.

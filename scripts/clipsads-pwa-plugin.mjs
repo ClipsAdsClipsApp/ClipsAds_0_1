@@ -1,8 +1,8 @@
 /**
  * Dev/preview (Vite) half of the platform PWA chrome: serves the ?install=1
  * tutorial and the per-app manifest, and injects missing PWA head tags into
- * app documents. The deployed-app half lives in server/middleware/grok-pwa.ts;
- * both share scripts/grok-pwa-shared.mjs.
+ * app documents. The deployed-app half lives in server/middleware/clipsads-pwa.ts;
+ * both share scripts/clipsads-pwa.mjs.
  */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -16,7 +16,7 @@ import {
   renderInstallPageHtml,
   renderWebManifest,
   snapshotOgIdentity,
-} from "./clipsads-pwa-shared.mjs";
+} from "./clipsads-pwa.mjs";
 
 export const GROK_OG_IDENTITY_ID = "virtual:grok-og-identity";
 
@@ -52,7 +52,7 @@ function serveGrokPwa(middlewares) {
       return;
     }
 
-    if (pathOnly === "/__grok/manifest.webmanifest" || pathOnly === "/__grok/manifest.json") {
+    if (pathOnly === "/__clipsads/manifest.webmanifest" || pathOnly === "/__clipsads/manifest.json") {
       const body = Buffer.from(renderWebManifest(requestHost(req)), "utf8");
       res.statusCode = 200;
       res.setHeader("content-type", "application/manifest+json; charset=utf-8");

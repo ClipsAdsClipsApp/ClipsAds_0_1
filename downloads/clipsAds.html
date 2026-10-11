@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>clipsAds</title>
+<title>ClipsAds</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;800&family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet" />
 <style>
@@ -140,10 +140,10 @@ function gate() {
   const el = $(`<div class="screen on"><div class="gate">
     <div class="mark">▶</div>
     <h1>clips<b>Ads</b></h1>
-    <p class="muted">Descubre, Opina y Compra Mejor.</p>
+    <p class="muted">Descubre, Elige, Opina y Compra Mejor.</p>
     <input class="field" id="mail" placeholder="Correo" />
     <input class="field" type="password" value="demo" placeholder="Contraseña" />
-    <button class="enter" id="go">Entrar a clipsAds</button>
+    <button class="enter" id="go">Entrar a </button>
   </div></div>`);
   el.querySelector("#go").onclick = () => { state.in = true; render(); };
   return el;
@@ -231,7 +231,7 @@ function nav() {
 }
 function plain() {
   const titles = { explore: ["Explorar", "Categorías locales · Parla y sur de Madrid"], create: ["Publicar", "Elige un vídeo de tu galería."], clips: ["Mis clips", "Los que subas aparecen al inicio."], profile: ["Perfil", "Demo local. Sin cuenta real."] };
-  const [t, s] = titles[state.tab] || ["clipsAds", ""];
+  const [t, s] = titles[state.tab] || ["ClipsAds", ""];
   const el = $(`<div class="screen on"><div class="plain"><h2>${t}</h2><p class="muted">${s}</p>${state.tab === "create" ? `<button class="enter" id="pick">Elegir vídeo</button>` : ""}</div></div>`);
   return el;
 }
@@ -260,7 +260,7 @@ function sheet() {
     render();
   };
   const copy = bg.querySelector("#copy");
-  if (copy) copy.onclick = async () => { try { await navigator.clipboard.writeText("https://clipsads.app/a/" + c.id); } catch (e) {} c.shares++; state.sheet = null; render(); };
+  if (copy) copy.onclick = async () => { try { await navigator.clipboard.writeText("https://ClipsAds.app/a/" + c.id); } catch (e) {} c.shares++; state.sheet = null; render(); };
   const pick = bg.querySelector("#pick2");
   if (pick) pick.onclick = () => document.getElementById("file")?.click() || pickFile();
   return bg;

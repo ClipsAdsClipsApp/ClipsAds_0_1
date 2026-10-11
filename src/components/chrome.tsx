@@ -15,7 +15,7 @@ export function LogoMark({ size = 38 }: { size?: number }) {
   return (
     <img
       src="/logo.jpg"
-      alt="clipsAds"
+      alt="ClipsAds"
       width={size}
       height={size}
       className="rounded-[12px] border border-cyan/40 object-cover shadow-[0_4px_16px_rgb(0_229_255_/_0.28)]"
@@ -33,8 +33,8 @@ export function Wordmark({ className }: { className?: string }) {
 
 export function PhoneFrame({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-[#050508] p-0 sm:p-3">
-      <div className="relative h-dvh w-full overflow-hidden bg-bg sm:h-[min(880px,calc(100dvh-24px))] sm:w-[390px] sm:rounded-[38px] sm:border-[8px] sm:border-[#25252c] sm:shadow-[0_25px_70px_#000]">
+    <div className="app-viewport">
+      <div className="app-shell">
         {children}
       </div>
     </div>

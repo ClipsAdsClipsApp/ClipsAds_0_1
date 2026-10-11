@@ -128,7 +128,7 @@ export function isInstallQuery(url) {
 export function isDocumentPath(pathname) {
   const path = String(pathname ?? "");
   return (
-    !path.startsWith("/__grok/") &&
+    !path.startsWith("/__clipsads/") &&
     !path.startsWith("/api/") &&
     !path.startsWith("/@") &&
     !path.startsWith("/node_modules") &&
@@ -169,13 +169,23 @@ export function renderWebManifest(hostHeader) {
       display: "standalone",
       background_color: "#000000",
       theme_color: "#000000",
-      icons: [
+       icons: [
         {
-          src: "/__grok/icon-180.png",
+          src: "/__clipsads/icon-180.png",
           sizes: "180x180",
           type: "image/png",
         },
-      ],
+        {
+          src: "/__clispads/icon-192.png",
+          sizes: "192x192",
+          type: "image/png",
+        },
+        {
+          src: "/__clipsads/icon-512.png",
+          sizes: "512x512",
+          type: "image/png",
+        },
+      ], 
     },
     null,
     2,
@@ -186,8 +196,8 @@ export function grokPwaHeadTags(appName = DEFAULT_APP_NAME) {
   return [
     // Standalone display comes from the manifest ("display": "standalone");
     // the legacy *-web-app-capable metas it replaces are deliberately absent.
-    ["manifest", '<link rel="manifest" href="/__grok/manifest.webmanifest">'],
-    ["apple-touch-icon", '<link rel="apple-touch-icon" href="/__grok/icon-180.png">'],
+    ["manifest", '<link rel="manifest" href="/__clipsads/manifest.webmanifest">'],
+    ["apple-touch-icon", '<link rel="apple-touch-icon" href="/__clipsads/icon-180.png">'],
     [
       "apple-mobile-web-app-title",
       `<meta name="apple-mobile-web-app-title" content="${escapeHtml(appName)}">`,
@@ -450,8 +460,8 @@ export function injectGrokPwaHead(html, ctx = {}) {
 
   const missing = grokPwaHeadTags(appName)
     .filter(([key]) => {
-      if (key === "manifest") return !next.includes('href="/__grok/manifest.webmanifest"');
-      if (key === "apple-touch-icon") return !next.includes('href="/__grok/icon-180.png"');
+      if (key === "manifest") return !next.includes('href="/__clipsads/manifest.webmanifest"');
+      if (key === "apple-touch-icon") return !next.includes('href="/__clipsads/icon-180.png"');
       return !next.includes(`name="${key}"`);
     })
     .map(([, tag]) => tag);

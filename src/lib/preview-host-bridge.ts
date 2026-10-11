@@ -90,7 +90,7 @@ export function installPreviewHostBridge(
   const parentOrigin = resolveCurrentEmbedderOrigin();
   if (parentOrigin === null) return () => {};
 
-  const ROOT_STATE_KEY = "__grokPreviewBridgeRoot";
+  const ROOT_STATE_KEY = "__clipsadsPreviewBridgeRoot";
   const originalPushState = window.history.pushState.bind(window.history);
   const originalReplaceState = window.history.replaceState.bind(window.history);
 

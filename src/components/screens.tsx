@@ -12,10 +12,10 @@ import {
 import { clipStats, creatorById, DISCLOSURE_LABEL, productById } from "@/lib/catalog";
 import { CATEGORIES, CREATORS, REVIEWS } from "@/lib/seed";
 import { useApp } from "@/lib/store";
-import type { CategoryId, Clip, Disclosure } from "@/lib/types";
+import type { CategoryId, Clip, Disclosure, UserProfile } from "@/lib/types";
 import { cn, formatCount, formatPrice } from "@/lib/utils";
 import { UserButton } from "@/lib/auth/gates";
-import { signOut } from "@/lib/auth/client";
+import { signOut } from "@/lib/firebase/auth";
 import { saveMyProfile } from "@/lib/profile";
 
 export function Explore() {
@@ -422,7 +422,7 @@ export function Profile() {
 
   if (!user) return null;
 
-  async function persist(patch: Partial<typeof user>) {
+  async function persist(patch: Partial<UserProfile>) {
     if (!user) return;
     const next = { ...user, ...patch };
     updateUser(patch);

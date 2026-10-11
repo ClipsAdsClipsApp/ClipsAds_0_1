@@ -9,8 +9,10 @@ import type {
   Tab,
   UserProfile,
 } from "@/lib/types";
+import { firebaseConfigured } from "@/lib/firebase/client";
+import { loadUserAppState, saveUserAppState } from "@/lib/firebase/user-state";
 
-const KEY = "ClipsAds-demo-v1";
+const KEY = "ClipsAds-state-v2";
 
 interface Persisted {
   user: UserProfile | null;
@@ -36,7 +38,7 @@ interface AppState extends Persisted {
   sheetClipId: string | null;
   toast: string | null;
   soundOn: boolean;
-  hydrate: () => void;
+  hydrate: (userId: string | null) => Promise<void>;
   persist: () => void;
   toastMsg: (msg: string) => void;
   login: (user: UserProfile, opts?: { silent?: boolean }) => void;
@@ -64,6 +66,7 @@ interface AppState extends Persisted {
 
 function save(part: Persisted) {
   if (typeof window === "undefined") return;
+  const userId = part.user?.id ?? null;
   const data: Persisted = {
     user: part.user,
     clips: part.clips,
@@ -78,8 +81,20 @@ function save(part: Persisted) {
     fulfills: part.fulfills,
     adLike: part.adLike,
   };
-  localStorage.setItem(KEY, JSON.stringify(data));
+  localStorage.setItem(`${KEY}:${userId ?? "guest"}`, JSON.stringify(data));
+  if (userId && firebaseConfigured) {
+    const previous = cloudSaves.get(userId) ?? Promise.resolve();
+    const current = previous
+      .catch(() => undefined)
+      .then(() => saveUserAppState(userId, data))
+      .catch((error: unknown) => {
+        console.error("[firebase] Could not sync account state.", error);
+      });
+    cloudSaves.set(userId, current);
+  }
 }
+
+const cloudSaves = new Map<string, Promise<void>>();
 
 const empty: Persisted = {
   user: null,
@@ -107,10 +122,10 @@ export const useApp = create<AppState>((set, get) => ({
   toast: null,
   soundOn: false,
 
-  hydrate: () => {
+  hydrate: async (userId) => {
     let loaded = empty;
     try {
-      const raw = localStorage.getItem(KEY);
+      const raw = localStorage.getItem(`${KEY}:${userId ?? "guest"}`);
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<Persisted>;
         loaded = {
@@ -132,6 +147,22 @@ export const useApp = create<AppState>((set, get) => ({
     } catch {
       loaded = empty;
     }
+
+    if (userId && firebaseConfigured) {
+      try {
+        const remote = await loadUserAppState<Partial<Persisted>>(userId);
+        if (remote) {
+          loaded = {
+            ...loaded,
+            ...remote,
+            user: remote.user?.id === userId ? remote.user : loaded.user,
+          };
+        }
+      } catch (error) {
+        console.error("[firebase] Could not load account state.", error);
+      }
+    }
+
     set({ ...loaded, ready: true });
   },
 
@@ -328,8 +359,8 @@ export const useApp = create<AppState>((set, get) => ({
     try {
       if (navigator.share) {
         await navigator.share({
-          title: "clipsAds",
-          text: "Mira este anuncio en clipsAds",
+          title: "ClipsAds",
+          text: "Mira este anuncio en ClipsAds",
           url: location.href,
         });
       } else {

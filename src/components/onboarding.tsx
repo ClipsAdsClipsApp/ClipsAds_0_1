@@ -5,7 +5,14 @@ import type { AgeRange, CategoryId, Gender, Role, UserProfile } from "@/lib/type
 import { cn } from "@/lib/utils";
 import { LogoMark, Wordmark } from "@/components/chrome";
 import { IconCheck } from "@/components/icons";
-import { GROK_PROVIDERS, authClient, signIn } from "@/lib/auth/client";
+import {
+  authEnabled,
+  FIREBASE_PROVIDERS,
+  firebaseConfigured,
+  registerWithEmail,
+  signIn,
+  signInWithEmail,
+} from "@/lib/firebase/auth";
 import { saveMyProfile } from "@/lib/profile";
 import type { AppUser } from "@/lib/auth/use-current-user";
 
@@ -47,18 +54,19 @@ export function Onboarding({ session }: { session?: AppUser | null }) {
     setBusy(true);
     setError(null);
     try {
+      if (!authEnabled) {
+        throw new Error("Firebase no está configurado para esta aplicación.");
+      }
       if (mode === "login") {
-        const { error: err } = await authClient.signIn.email({ email, password });
-        if (err) throw new Error(err.message || "Correo o contraseña incorrectos");
+        await signInWithEmail(email, password);
         window.location.assign("/");
         return;
       }
-      const { error: err } = await authClient.signUp.email({
+      await registerWithEmail(
         email,
         password,
-        name: username || email.split("@")[0] || "usuario",
-      });
-      if (err) throw new Error(err.message || "No se pudo crear la cuenta");
+        username || email.split("@")[0] || "usuario",
+      );
       window.location.assign("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error de acceso");
@@ -106,18 +114,18 @@ export function Onboarding({ session }: { session?: AppUser | null }) {
   }
 
   return (
-    <div className="flex h-full flex-col justify-between bg-[radial-gradient(circle_at_50%_0,#15223a,var(--color-bg)_62%)] px-5 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[calc(28px+env(safe-area-inset-top))]">
-      <div>
-        <div className="mb-7 text-center">
-          <div className="mx-auto mb-3.5">
+    <div className="onboarding-frame flex h-full flex-col justify-between bg-[radial-gradient(circle_at_50%_0,#15223a,var(--color-bg)_62%)] px-5 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[calc(28px+env(safe-area-inset-top))]">
+      <div className="onboarding-content min-h-0 w-full max-w-md self-center overflow-y-auto scrollbar-none">
+        <div className="onboarding-header mb-7 text-center">
+          <div className="onboarding-logo mx-auto mb-3.5">
             <LogoMark size={72} />
           </div>
           <Wordmark className="text-[34px] leading-none" />
-          <p className="mt-2 text-sm text-muted">Descubre, Opina y Compra Mejor.</p>
+          <p className="mt-2 text-sm text-muted">Descubre, Elige, Opina y Compra Mejor.</p>
         </div>
 
         {step === "auth" ? (
-          <form onSubmit={submitAuth} className="space-y-2.5">
+          <form onSubmit={submitAuth} className="onboarding-form space-y-2.5">
             <div className="mb-1 grid grid-cols-2 gap-1 rounded-[14px] bg-fg/5 p-1">
               <TabBtn on={mode === "register"} onClick={() => setMode("register")}>
                 Crear cuenta
@@ -126,6 +134,11 @@ export function Onboarding({ session }: { session?: AppUser | null }) {
                 Entrar
               </TabBtn>
             </div>
+            {!firebaseConfigured ? (
+              <p className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-xs text-amber-200">
+                Falta configurar Firebase para activar el registro y el inicio de sesión.
+              </p>
+            ) : null}
             {mode === "register" ? (
               <Field
                 label="Usuario"
@@ -145,17 +158,20 @@ export function Onboarding({ session }: { session?: AppUser | null }) {
             {error ? <p className="text-xs text-red-400">{error}</p> : null}
             <button
               type="submit"
-              disabled={busy || !email || password.length < 8}
-              className="mt-1 w-full rounded-[14px] bg-[linear-gradient(90deg,#2ee6d6,#7cffb2)] py-3 text-sm font-extrabold text-bg disabled:opacity-40"
+              disabled={!authEnabled || busy || !email || password.length < 8}
+              className="onboarding-submit mt-1 w-full rounded-[14px] bg-[linear-gradient(90deg,#2ee6d6,#7cffb2)] py-3 text-sm font-extrabold text-bg disabled:opacity-40"
             >
               {busy ? "…" : mode === "register" ? "Continuar" : "Entrar"}
             </button>
             <div className="grid grid-cols-2 gap-2 pt-1">
-              {GROK_PROVIDERS.map((p) => (
+              {FIREBASE_PROVIDERS.map((p) => (
                 <button
                   key={p.providerId}
                   type="button"
-                  onClick={() => signIn(p.providerId, { callbackURL: "/" })}
+                  disabled={!authEnabled}
+                  onClick={() => void signIn(p.providerId).catch((err) => {
+                    setError(err instanceof Error ? err.message : "No se pudo iniciar sesión");
+                  })}
                   className="rounded-[14px] border border-line bg-surface py-2.5 text-xs font-bold"
                 >
                   {p.label}
@@ -231,7 +247,7 @@ export function Onboarding({ session }: { session?: AppUser | null }) {
               onClick={() => void finish()}
               className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-[linear-gradient(90deg,#2ee6d6,#7cffb2)] py-3 text-sm font-extrabold text-bg"
             >
-              <IconCheck size={16} /> {busy ? "Guardando…" : "Empezar en clipsAds"}
+              <IconCheck size={16} /> {busy ? "Guardando…" : "Empezar en ClipsAds"}
             </button>
           </div>
         )}

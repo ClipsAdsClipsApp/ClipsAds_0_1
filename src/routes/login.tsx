@@ -1,6 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { FormEvent, useState } from "react";
-import { GROK_PROVIDERS, authClient, authEnabled, signIn } from "@/lib/auth/client";
+import {
+  FIREBASE_PROVIDERS,
+  authEnabled,
+  firebaseConfigured,
+  registerWithEmail,
+  signIn,
+  signInWithEmail,
+} from "@/lib/firebase/auth";
 
 export const Route = createFileRoute("/login")({ component: Login });
 
@@ -18,16 +25,13 @@ function Login() {
     setBusy(true);
     setError(null);
     try {
+      if (!firebaseConfigured) {
+        throw new Error("Firebase no está configurado para esta aplicación.");
+      }
       if (mode === "register") {
-        const { error: err } = await authClient.signUp.email({
-          email,
-          password,
-          name: name || email.split("@")[0] || "usuario",
-        });
-        if (err) throw new Error(err.message || "No se pudo crear la cuenta");
+        await registerWithEmail(email, password, name || email.split("@")[0] || "usuario");
       } else {
-        const { error: err } = await authClient.signIn.email({ email, password });
-        if (err) throw new Error(err.message || "Correo o contraseña incorrectos");
+        await signInWithEmail(email, password);
       }
       window.location.assign("/");
     } catch (err) {
@@ -49,11 +53,13 @@ function Login() {
         {authEnabled ? (
           <>
             <div className="grid grid-cols-2 gap-2">
-              {GROK_PROVIDERS.map((p) => (
+              {FIREBASE_PROVIDERS.map((p) => (
                 <button
                   key={p.providerId}
                   type="button"
-                  onClick={() => signIn(p.providerId, { callbackURL: "/" })}
+                  onClick={() => void signIn(p.providerId).catch((err) => {
+                    setError(err instanceof Error ? err.message : "No se pudo iniciar sesión");
+                  })}
                   className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm font-bold"
                 >
                   {p.label}
@@ -104,7 +110,9 @@ function Login() {
             </button>
           </>
         ) : (
-          <p className="text-sm text-[#9aa7b5]">El registro está desactivado.</p>
+          <p className="text-sm text-[#9aa7b5]">
+            Configura Firebase para habilitar el registro y el inicio de sesión.
+          </p>
         )}
         <Link to="/" className="block text-center text-xs text-[#2ee6d6]">
           Volver al inicio

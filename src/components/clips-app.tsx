@@ -16,8 +16,8 @@ export function ClipsAds() {
   const [profileReady, setProfileReady] = useState(false);
 
   useEffect(() => {
-    hydrate();
-  }, [hydrate]);
+    if (!isPending) void hydrate(session?.id ?? null);
+  }, [hydrate, isPending, session?.id]);
 
   useEffect(() => {
     if (isPending) return;
