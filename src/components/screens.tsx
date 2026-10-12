@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { uploadPresigned } from "@vercel/blob/client";
 import { BottomNav, OptionButton } from "@/components/chrome";
 import {
   IconChart,
@@ -16,6 +17,7 @@ import type { CategoryId, Clip, Disclosure, UserProfile } from "@/lib/types";
 import { cn, formatCount, formatPrice } from "@/lib/utils";
 import { UserButton } from "@/lib/auth/gates";
 import { signOut } from "@/lib/firebase/auth";
+import { getFirebaseAuth } from "@/lib/firebase/client";
 import { saveMyProfile } from "@/lib/profile";
 
 export function Explore() {
@@ -169,6 +171,10 @@ export function CreateClip() {
   const user = useApp((s) => s.user);
   const publishClip = useApp((s) => s.publishClip);
   const [fileUrl, setFileUrl] = useState<string>();
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [brand, setBrand] = useState("");
   const [price, setPrice] = useState("19.90");
@@ -176,6 +182,111 @@ export function CreateClip() {
   const [category, setCategory] = useState<CategoryId>("tech");
   const [disclosure, setDisclosure] = useState<Disclosure>("organic");
   const [cta, setCta] = useState<"buy" | "book" | "directions">("buy");
+
+  useEffect(() => () => {
+    if (fileUrl) URL.revokeObjectURL(fileUrl);
+  }, [fileUrl]);
+
+  async function submitClip() {
+    if (!selectedFile || !name.trim()) return;
+    setUploading(true);
+    setUploadProgress(0);
+    setUploadError(null);
+    try {
+      const firebaseUser = getFirebaseAuth().currentUser;
+      if (!firebaseUser || firebaseUser.uid !== user?.id) {
+        throw new Error("Inicia sesión de nuevo antes de subir un video.");
+      }
+      const maxVideoBytes = 100 * 1024 * 1024;
+      if (selectedFile.size > maxVideoBytes) {
+        throw new Error("El video supera el límite de 100 MB.");
+      }
+
+      const extensions: Record<string, { extension: string; contentType: string }> = {
+        "video/mp4": { extension: "mp4", contentType: "video/mp4" },
+        "video/webm": { extension: "webm", contentType: "video/webm" },
+        "video/quicktime": { extension: "mov", contentType: "video/quicktime" },
+        "video/x-m4v": { extension: "m4v", contentType: "video/x-m4v" },
+        "video/ogg": { extension: "ogg", contentType: "video/ogg" },
+        "video/3gpp": { extension: "3gp", contentType: "video/3gpp" },
+      };
+      const byMime = extensions[selectedFile.type.toLowerCase()];
+      const byExtension = Object.values(extensions).find(({ extension }) =>
+        selectedFile.name.toLowerCase().endsWith(`.${extension}`),
+      );
+      const videoType = byMime ?? byExtension;
+      if (!videoType) {
+        throw new Error("Formato no compatible. Usa MP4, WebM, MOV, M4V, OGG o 3GP.");
+      }
+
+      const id = `mine-${crypto.randomUUID()}`;
+      const pathname = `clips/${firebaseUser.uid}/${id}.${videoType.extension}`;
+      const idToken = await firebaseUser.getIdToken();
+      const blob = await uploadPresigned(pathname, selectedFile, {
+        access: "public",
+        contentType: videoType.contentType,
+        handleUploadUrl: "/api/blob/upload",
+        headers: { Authorization: `Bearer ${idToken}` },
+        multipart: selectedFile.size > 5 * 1024 * 1024,
+        onUploadProgress: ({ percentage }) => setUploadProgress(percentage),
+      });
+
+      const parsed = Number.parseFloat(price.replace(",", ".")) || 0;
+      publishClip(
+        {
+          id,
+          videoUrl: blob.url,
+          posterUrl: "/images/headphones.jpg",
+          caption: caption || name,
+          authorId: firebaseUser.uid,
+          productId: id,
+          disclosure,
+          likes: 0,
+          comments: 0,
+          saves: 0,
+          shares: 0,
+          fulfillsYes: 1,
+          fulfillsMid: 0,
+          fulfillsNo: 0,
+          wouldYes: 1,
+          wouldNo: 0,
+          adYes: 0,
+          adNo: 0,
+          local: cta !== "buy",
+          sponsored: disclosure === "sponsored",
+          createdAt: Date.now(),
+        },
+        {
+          id,
+          name: name.trim(),
+          brand: brand.trim() || "Mi marca",
+          description: caption || name,
+          price: parsed,
+          currency: "EUR",
+          category,
+          city: user?.city ?? "Parla",
+          distanceKm: 0.4,
+          imageUrl: "/images/headphones.jpg",
+          cta,
+          ctaLabel:
+            cta === "buy" ? "Comprar ahora" : cta === "book" ? "Reservar ahora" : "Cómo llegar",
+          fulfills: 100,
+          wouldBuy: 100,
+          verifiedOpinions: 1,
+          rating: 5,
+          pros: ["Publicado por un usuario"],
+          cons: [],
+          faq: [],
+          alternatives: [],
+          where: [brand.trim() || "Local"],
+        },
+      );
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "No se pudo subir el video.");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   return (
     <div className="relative flex h-full flex-col bg-bg">
@@ -192,15 +303,21 @@ export function CreateClip() {
           )}
           <input
             type="file"
-            accept="video/*"
+            accept="video/mp4,video/webm,video/quicktime,video/x-m4v,video/ogg,video/3gpp"
             className="hidden"
             onChange={(e) => {
               const f = e.target.files?.[0];
               if (!f) return;
+              setSelectedFile(f);
               setFileUrl(URL.createObjectURL(f));
             }}
           />
         </label>
+        {selectedFile ? (
+          <p className="mb-3 truncate text-xs text-muted">
+            {selectedFile.name} · {(selectedFile.size / (1024 * 1024)).toFixed(1)} MB
+          </p>
+        ) : null}
         <Field label="Producto" value={name} onChange={setName} placeholder="Nombre del producto" />
         <Field label="Marca o comercio" value={brand} onChange={setBrand} placeholder="SoundTech" />
         <Field label="Precio" value={price} onChange={setPrice} placeholder="19.90" />
@@ -250,66 +367,15 @@ export function CreateClip() {
         </div>
         <button
           type="button"
-          disabled={!name.trim()}
-          onClick={() => {
-            const id = `mine-${Date.now()}`;
-            const parsed = Number.parseFloat(price.replace(",", ".")) || 0;
-            publishClip(
-              {
-                id,
-                videoUrl: fileUrl,
-                posterUrl: fileUrl ? "" : "/images/headphones.jpg",
-                caption: caption || name,
-                authorId: user?.id ?? "me-local",
-                productId: id,
-                disclosure,
-                likes: 0,
-                comments: 0,
-                saves: 0,
-                shares: 0,
-                fulfillsYes: 1,
-                fulfillsMid: 0,
-                fulfillsNo: 0,
-                wouldYes: 1,
-                wouldNo: 0,
-                adYes: 0,
-                adNo: 0,
-                local: cta !== "buy",
-                sponsored: disclosure === "sponsored",
-                createdAt: Date.now(),
-              },
-              {
-                id,
-                name: name.trim(),
-                brand: brand.trim() || "Mi marca",
-                description: caption || name,
-                price: parsed,
-                currency: "EUR",
-                category,
-                city: user?.city ?? "Parla",
-                distanceKm: 0.4,
-                imageUrl: "/images/headphones.jpg",
-                cta,
-                ctaLabel:
-                  cta === "buy" ? "Comprar ahora" : cta === "book" ? "Reservar ahora" : "Cómo llegar",
-                fulfills: 100,
-                wouldBuy: 100,
-                verifiedOpinions: 1,
-                rating: 5,
-                pros: ["Publicado en la demo"],
-                cons: [],
-                faq: [],
-                alternatives: [],
-                where: [brand.trim() || "Local"],
-              },
-            );
-          }}
+          disabled={!name.trim() || !selectedFile || uploading}
+          onClick={() => void submitClip()}
           className="w-full rounded-[15px] bg-gradient-to-br from-cyan to-mint py-3.5 text-sm font-extrabold text-bg disabled:opacity-40"
         >
-          Publicar
+          {uploading ? `Subiendo ${uploadProgress}%` : "Publicar"}
         </button>
+        {uploadError ? <p className="mt-2 text-center text-xs text-danger">{uploadError}</p> : null}
         <p className="mt-2 text-center text-[11px] text-subtle">
-          El vídeo se queda en este dispositivo (demo local).
+          El video se guardará en Vercel Blob y estará disponible en tus dispositivos.
         </p>
       </div>
       <BottomNav />
