@@ -11,10 +11,10 @@ export function productById(id: string, extras: Product[] = []) {
   return extras.find((p) => p.id === id) ?? PRODUCTS.find((p) => p.id === id) ?? PRODUCTS[0];
 }
 
-export function clipAuthor(id: string, me?: { username: string; displayName: string; avatarUrl: string; role: Creator["role"]; city: string } | null) {
-  if (id === "me-local" && me) {
+export function clipAuthor(id: string, me?: { id: string; username: string; displayName: string; avatarUrl: string; role: Creator["role"]; city: string } | null) {
+  if (me && (id === "me-local" || id === me.id)) {
     return {
-      id: "me-local",
+      id,
       username: me.username,
       displayName: me.displayName,
       avatarUrl: me.avatarUrl,
