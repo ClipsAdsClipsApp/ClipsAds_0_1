@@ -148,13 +148,61 @@ function Chip({
   );
 }
 
+function ClipThumb({ clip, fallback, className }: { clip: Clip; fallback?: string; className: string }) {
+  if (clip.videoUrl) {
+    return (
+      <video
+        src={`${clip.videoUrl}#t=0.1`}
+        poster={clip.posterUrl.startsWith("data:") ? clip.posterUrl : undefined}
+        preload="metadata"
+        muted
+        playsInline
+        className={cn("bg-black", className)}
+      />
+    );
+  }
+  return <img src={clip.posterUrl || fallback} alt="" className={className} />;
+}
+
+function captureFrame(url: string): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    const v = document.createElement("video");
+    v.muted = true;
+    v.playsInline = true;
+    v.preload = "auto";
+    v.src = url;
+    const done = (value?: string) => {
+      v.removeAttribute("src");
+      resolve(value);
+    };
+    v.onerror = () => done();
+    v.onloadeddata = () => {
+      v.currentTime = Math.min(0.5, (v.duration || 1) / 2);
+    };
+    v.onseeked = () => {
+      try {
+        const w = 320;
+        const h = Math.round((w * v.videoHeight) / (v.videoWidth || 1)) || 480;
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext("2d")?.drawImage(v, 0, 0, w, h);
+        done(canvas.toDataURL("image/jpeg", 0.7));
+      } catch {
+        done();
+      }
+    };
+    window.setTimeout(() => done(), 8000);
+  });
+}
+
 function ClipTile({ clip, onOpen }: { clip: Clip; onOpen: () => void }) {
   const products = useApp((s) => s.products);
   const p = productById(clip.productId, products);
   return (
     <button type="button" onClick={onOpen} className="overflow-hidden rounded-2xl border border-line text-left">
       <div className="relative h-40">
-        <img src={clip.posterUrl} alt="" className="h-full w-full object-cover" />
+        <ClipThumb clip={clip} className="h-full w-full object-cover" />
         <span className="absolute bottom-2 left-2 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-bold">
           {DISCLOSURE_LABEL[clip.disclosure]}
         </span>
@@ -172,6 +220,7 @@ export function CreateClip() {
   const publishClip = useApp((s) => s.publishClip);
   const [fileUrl, setFileUrl] = useState<string>();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [posterUrl, setPosterUrl] = useState<string>();
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -236,7 +285,7 @@ export function CreateClip() {
         {
           id,
           videoUrl: blob.url,
-          posterUrl: "/images/headphones.jpg",
+          posterUrl: posterUrl ?? "/images/headphones.jpg",
           caption: caption || name,
           authorId: firebaseUser.uid,
           productId: id,
@@ -297,7 +346,15 @@ export function CreateClip() {
       <div className="scrollbar-none flex-1 overflow-y-auto px-4 pb-24 pt-3">
         <label className="mb-3 flex h-44 cursor-pointer items-center justify-center overflow-hidden rounded-2xl border border-dashed border-cyan/40 bg-surface">
           {fileUrl ? (
-            <video src={fileUrl} className="h-full w-full object-cover" muted playsInline />
+            <video
+              src={`${fileUrl}#t=0.1`}
+              className="h-full w-full object-cover"
+              muted
+              loop
+              autoPlay
+              playsInline
+              preload="metadata"
+            />
           ) : (
             <span className="text-sm font-semibold text-muted">Selecciona un vídeo</span>
           )}
@@ -309,7 +366,10 @@ export function CreateClip() {
               const f = e.target.files?.[0];
               if (!f) return;
               setSelectedFile(f);
-              setFileUrl(URL.createObjectURL(f));
+              const url = URL.createObjectURL(f);
+              setFileUrl(url);
+              setPosterUrl(undefined);
+              void captureFrame(url).then(setPosterUrl);
             }}
           />
         </label>
@@ -454,7 +514,7 @@ export function Library() {
                     setTab("home");
                   }}
                 >
-                  <img src={c.posterUrl || p.imageUrl} alt="" className="h-16 w-20 rounded-xl object-cover" />
+                  <ClipThumb clip={c} fallback={p.imageUrl} className="h-16 w-20 rounded-xl object-cover" />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-bold">{p.name}</div>
                     <div className="text-[11px] text-muted">
