@@ -27,7 +27,14 @@ export function ClipsAds() {
       (docs) => useApp.getState().setRemote(docs),
       (error) => {
         console.error("[firebase] Could not load shared clips.", error);
-        useApp.getState().toastMsg("No se pudieron cargar los clips compartidos");
+        const code = (error as { code?: string }).code;
+        useApp
+          .getState()
+          .toastMsg(
+            code === "permission-denied"
+              ? "Firestore bloquea la lectura: publica las reglas"
+              : `No se pudieron cargar los clips compartidos${code ? ` (${code})` : ""}`,
+          );
       },
     );
   }, []);
