@@ -22,10 +22,14 @@ export type CategoryId =
   | "leisure"
   | "sport"
   | "restaurants"
-  | "fashion";
+  | "fashion"
+  | "entertainment"
+  | "education"
+  | "health";
 
 export type SheetKind =
   | "comments"
+  | "share"
   | "tried"
   | "would"
   | "cta"

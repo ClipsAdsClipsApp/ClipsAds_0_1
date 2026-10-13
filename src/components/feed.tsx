@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Copy, Mail, MessageCircle, Send } from "lucide-react";
 import { BottomNav, LogoMark, OptionButton, Sheet, Wordmark } from "@/components/chrome";
 import {
   BrandActionIcon,
@@ -463,6 +464,9 @@ function ClipSheets() {
       <Sheet open={sheet === "comments"} title="Comentarios" onClose={closeSheet}>
         <CommentsSheet clipId={clip.id} />
       </Sheet>
+      <Sheet open={sheet === "share"} title="Compartir clip" onClose={closeSheet}>
+        <ShareSheet />
+      </Sheet>
       <Sheet open={sheet === "cta"} title={product.ctaLabel} onClose={closeSheet}>
         <CtaSheet clip={clip} />
       </Sheet>
@@ -476,6 +480,63 @@ function ClipSheets() {
         <ProductSheet clip={clip} disclosure={clip.disclosure} author={author.displayName} />
       </Sheet>
     </>
+  );
+}
+
+function ShareSheet() {
+  const toastMsg = useApp((s) => s.toastMsg);
+  const closeSheet = useApp((s) => s.closeSheet);
+  const url = typeof window === "undefined" ? "" : window.location.href;
+  const message = `Mira este anuncio en ClipsAds: ${url}`;
+  const options = [
+    {
+      label: "WhatsApp",
+      href: `https://wa.me/?text=${encodeURIComponent(message)}`,
+      icon: MessageCircle,
+    },
+    {
+      label: "Telegram",
+      href: `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent("Mira este anuncio en ClipsAds")}`,
+      icon: Send,
+    },
+    {
+      label: "Correo",
+      href: `mailto:?subject=${encodeURIComponent("ClipsAds")}&body=${encodeURIComponent(message)}`,
+      icon: Mail,
+    },
+  ];
+
+  return (
+    <div className="space-y-2">
+      {options.map(({ label, href, icon: Icon }) => (
+        <a
+          key={label}
+          href={href}
+          target={label === "Correo" ? undefined : "_blank"}
+          rel="noreferrer"
+          onClick={closeSheet}
+          className="flex w-full items-center gap-3 rounded-[13px] border border-line bg-surface-2 px-3.5 py-3.5 text-sm font-semibold text-fg"
+        >
+          <Icon size={18} />
+          {label}
+        </a>
+      ))}
+      <OptionButton
+        onClick={async () => {
+          try {
+            await navigator.clipboard.writeText(url);
+            toastMsg("Enlace copiado");
+            closeSheet();
+          } catch {
+            toastMsg("No se pudo copiar el enlace");
+          }
+        }}
+      >
+        <span className="flex items-center gap-3">
+          <Copy size={18} /> Copiar enlace
+        </span>
+      </OptionButton>
+    </div>
   );
 }
 

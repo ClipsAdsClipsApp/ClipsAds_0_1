@@ -419,8 +419,7 @@ export const useApp = create<AppState>((set, get) => ({
           url: location.href,
         });
       } else {
-        await navigator.clipboard.writeText(location.href);
-        get().toastMsg("Enlace copiado");
+        set({ sheet: "share", sheetClipId: clipId });
       }
     } catch {
       get().toastMsg("Compartir cancelado");

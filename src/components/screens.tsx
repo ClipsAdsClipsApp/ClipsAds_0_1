@@ -318,6 +318,7 @@ export function CreateClip() {
           price: parsed,
           currency: "EUR",
           category,
+          imageUrl: posterUrl ?? "/images/headphones.jpg",
           city: user?.city ?? "Parla",
           distanceKm: 0.4,
           cta,

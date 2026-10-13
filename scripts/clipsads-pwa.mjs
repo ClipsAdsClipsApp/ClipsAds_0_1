@@ -169,14 +169,14 @@ export function renderWebManifest(hostHeader) {
       display: "standalone",
       background_color: "#000000",
       theme_color: "#000000",
-       icons: [
+      icons: [
         {
           src: "/__clipsads/icon-180.png",
           sizes: "180x180",
           type: "image/png",
         },
         {
-          src: "/__clispads/icon-192.png",
+          src: "/__clipsads/icon-192.png",
           sizes: "192x192",
           type: "image/png",
         },
@@ -185,7 +185,7 @@ export function renderWebManifest(hostHeader) {
           sizes: "512x512",
           type: "image/png",
         },
-      ], 
+      ],
     },
     null,
     2,
