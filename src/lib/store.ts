@@ -10,9 +10,45 @@ import type {
   UserProfile,
 } from "@/lib/types";
 import { firebaseConfigured } from "@/lib/firebase/client";
+import { publishSharedClip, type SharedClipDoc } from "@/lib/firebase/clips";
+import { remoteCreators } from "@/lib/creators-registry";
 import { loadUserAppState, saveUserAppState } from "@/lib/firebase/user-state";
 
 const KEY = "ClipsAds-state-v2";
+
+const isShared = (id: string) => id.startsWith("mine-");
+
+function mergeRemote(
+  clips: Clip[],
+  products: Product[],
+  docs: SharedClipDoc[],
+): { clips: Clip[]; products: Product[] } {
+  const clipIds = new Set(docs.map((d) => d.clip.id));
+  const productIds = new Set(docs.map((d) => d.product?.id).filter(Boolean));
+  for (const d of docs) {
+    remoteCreators.set(d.authorId, {
+      id: d.authorId,
+      username: d.author.username,
+      displayName: d.author.displayName,
+      avatarUrl: d.author.avatarUrl,
+      role: d.author.role,
+      city: d.author.city,
+      bio: "",
+      followers: 0,
+      verified: false,
+    });
+  }
+  return {
+    clips: [
+      ...docs.map((d) => d.clip),
+      ...clips.filter((c) => !clipIds.has(c.id) && !isShared(c.id)),
+    ],
+    products: [
+      ...docs.flatMap((d) => (d.product ? [d.product] : [])),
+      ...products.filter((p) => !productIds.has(p.id) && !isShared(p.id)),
+    ],
+  };
+}
 
 interface Persisted {
   user: UserProfile | null;
@@ -31,6 +67,8 @@ interface Persisted {
 
 interface AppState extends Persisted {
   ready: boolean;
+  remote: SharedClipDoc[];
+  setRemote: (docs: SharedClipDoc[]) => void;
   tab: Tab;
   feedMode: FeedMode;
   activeClipId: string;
@@ -69,8 +107,8 @@ function save(part: Persisted) {
   const userId = part.user?.id ?? null;
   const data: Persisted = {
     user: part.user,
-    clips: part.clips,
-    products: part.products,
+    clips: part.clips.filter((c) => !isShared(c.id)),
+    products: part.products.filter((p) => !isShared(p.id)),
     comments: part.comments,
     liked: part.liked,
     saved: part.saved,
@@ -114,6 +152,7 @@ const empty: Persisted = {
 export const useApp = create<AppState>((set, get) => ({
   ...empty,
   ready: false,
+  remote: [],
   tab: "home",
   feedMode: "for-you",
   activeClipId: CLIPS[0]?.id ?? "c1",
@@ -163,7 +202,23 @@ export const useApp = create<AppState>((set, get) => ({
       }
     }
 
-    set({ ...loaded, ready: true });
+    const base = {
+      clips: loaded.clips.filter((c) => !isShared(c.id)),
+      products: loaded.products.filter((p) => !isShared(p.id)),
+    };
+    set({
+      ...loaded,
+      ...mergeRemote(
+        base.clips.length ? base.clips : CLIPS,
+        base.products.length ? base.products : PRODUCTS,
+        get().remote,
+      ),
+      ready: true,
+    });
+  },
+
+  setRemote: (docs) => {
+    set((s) => ({ remote: docs, ...mergeRemote(s.clips, s.products, docs) }));
   },
 
   persist: () => {
@@ -373,14 +428,35 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   publishClip: (clip, product) => {
+    const user = get().user;
+    const located: Clip = { ...clip, country: user?.country, province: user?.province };
     set({
-      clips: [clip, ...get().clips],
+      clips: [located, ...get().clips],
       products: product ? [product, ...get().products] : get().products,
       activeClipId: clip.id,
       tab: "home",
       sheet: null,
     });
     get().persist();
+    if (user && product && firebaseConfigured) {
+      const avatar = user.avatarUrl;
+      void publishSharedClip({
+        authorId: user.id,
+        clip: located,
+        product,
+        author: {
+          username: user.username,
+          displayName: user.displayName,
+          avatarUrl: /^(\/|https?:)/.test(avatar) ? avatar : "/avatars/user.jpg",
+          role: user.role,
+          city: user.city,
+        },
+        createdAt: clip.createdAt,
+      }).catch((error: unknown) => {
+        console.error("[firebase] Could not share clip.", error);
+        get().toastMsg("No se pudo compartir el clip");
+      });
+    }
     get().toastMsg("Clip publicado");
   },
 }));

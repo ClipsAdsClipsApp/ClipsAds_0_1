@@ -10,6 +10,8 @@ export type SavedProfile = {
   username: string;
   displayName: string;
   bio: string;
+  country?: string;
+  province?: string;
   city: string;
   avatarUrl: string;
   role: string;
@@ -28,6 +30,8 @@ export async function saveMyProfile({ data: input }: { data: {
     username: string;
     displayName: string;
     bio: string;
+    country?: string;
+    province?: string;
     city: string;
     avatarUrl: string;
     role: string;
@@ -38,6 +42,8 @@ export async function saveMyProfile({ data: input }: { data: {
     username: input.username.trim().replace(/^@/, "").toLowerCase().slice(0, 24) || "usuario",
     displayName: input.displayName.trim().slice(0, 40) || "Usuario",
     bio: input.bio.trim().slice(0, 180),
+    country: (input.country ?? "").trim().slice(0, 40),
+    province: (input.province ?? "").trim().slice(0, 40),
     city: input.city.trim().slice(0, 40) || "Parla",
     avatarUrl: input.avatarUrl.slice(0, 350_000),
     role: ["user", "creator", "business"].includes(input.role) ? input.role : "user",

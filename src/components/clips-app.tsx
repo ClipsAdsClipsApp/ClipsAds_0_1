@@ -4,6 +4,8 @@ import { Feed } from "@/components/feed";
 import { Onboarding } from "@/components/onboarding";
 import { CreateClip, Explore, Library, Profile } from "@/components/screens";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { firebaseConfigured } from "@/lib/firebase/client";
+import { subscribeSharedClips } from "@/lib/firebase/clips";
 import { getMyProfile } from "@/lib/profile";
 import { useApp } from "@/lib/store";
 import type { Role, UserProfile } from "@/lib/types";
@@ -18,6 +20,14 @@ export function ClipsAds() {
   useEffect(() => {
     if (!isPending) void hydrate(session?.id ?? null);
   }, [hydrate, isPending, session?.id]);
+
+  useEffect(() => {
+    if (!firebaseConfigured) return;
+    return subscribeSharedClips(
+      (docs) => useApp.getState().setRemote(docs),
+      (error) => console.error("[firebase] Could not load shared clips.", error),
+    );
+  }, []);
 
   useEffect(() => {
     if (isPending) return;
@@ -47,6 +57,8 @@ export function ClipsAds() {
             ageRange: "25-34",
             gender: "prefer_not",
             city: p.city,
+            country: p.country || undefined,
+            province: p.province || undefined,
             interests: ["tech", "restaurants"],
             personalizeAds: true,
             approximateLocation: true,

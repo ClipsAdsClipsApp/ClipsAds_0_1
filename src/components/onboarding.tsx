@@ -14,6 +14,7 @@ import {
   signInWithEmail,
 } from "@/lib/firebase/auth";
 import { saveMyProfile } from "@/lib/profile";
+import { COUNTRIES, DEFAULT_LOCATION, citiesOf, provincesOf } from "@/lib/locations";
 import type { AppUser } from "@/lib/auth/use-current-user";
 
 const AGES: AgeRange[] = ["18-24", "25-34", "35-44", "45-54", "55+"];
@@ -23,7 +24,6 @@ const GENDERS: { id: Gender; label: string }[] = [
   { id: "nonbinary", label: "No binario" },
   { id: "prefer_not", label: "Prefiero no decirlo" },
 ];
-const CITIES = ["Parla", "Madrid", "Leganés", "Getafe", "Fuenlabrada"];
 const ROLES: { id: Role; label: string; hint: string }[] = [
   { id: "user", label: "Usuario", hint: "Descubrir y opinar" },
   { id: "creator", label: "Creador", hint: "Publicar reseñas" },
@@ -42,7 +42,9 @@ export function Onboarding({ session }: { session?: AppUser | null }) {
   const [role, setRole] = useState<Role>("user");
   const [ageRange, setAgeRange] = useState<AgeRange>("25-34");
   const [gender, setGender] = useState<Gender>("prefer_not");
-  const [city, setCity] = useState("Parla");
+  const [country, setCountry] = useState(DEFAULT_LOCATION.country);
+  const [province, setProvince] = useState(DEFAULT_LOCATION.province);
+  const [city, setCity] = useState(DEFAULT_LOCATION.city);
   const [interests, setInterests] = useState<CategoryId[]>(["tech", "restaurants"]);
   const [personalizeAds, setPersonalizeAds] = useState(true);
   const [approximateLocation, setApproximateLocation] = useState(true);
@@ -85,6 +87,8 @@ export function Onboarding({ session }: { session?: AppUser | null }) {
           username: name,
           displayName: name,
           bio: "Nuevo en ClipsAds",
+          country,
+          province,
           city,
           avatarUrl: session?.profileImageUrl || "/avatars/user.jpg",
           role,
@@ -101,6 +105,8 @@ export function Onboarding({ session }: { session?: AppUser | null }) {
         ageRange,
         gender,
         city: saved.city,
+        country,
+        province,
         interests,
         personalizeAds,
         approximateLocation,
@@ -200,13 +206,34 @@ export function Onboarding({ session }: { session?: AppUser | null }) {
                 </button>
               ))}
             </div>
-            <p className="text-xs font-bold text-muted">Ciudad</p>
-            <div className="flex flex-wrap gap-1.5">
-              {CITIES.map((c) => (
-                <Chip key={c} on={city === c} onClick={() => setCity(c)}>
-                  {c}
-                </Chip>
-              ))}
+            <p className="text-xs font-bold text-muted">Ubicación</p>
+            <div className="grid gap-2">
+              <LocationSelect
+                label="País"
+                value={country}
+                options={COUNTRIES}
+                onChange={(v) => {
+                  const p = provincesOf(v)[0] ?? "";
+                  setCountry(v);
+                  setProvince(p);
+                  setCity(citiesOf(v, p)[0] ?? "");
+                }}
+              />
+              <LocationSelect
+                label="Provincia"
+                value={province}
+                options={provincesOf(country)}
+                onChange={(v) => {
+                  setProvince(v);
+                  setCity(citiesOf(country, v)[0] ?? "");
+                }}
+              />
+              <LocationSelect
+                label="Ciudad"
+                value={city}
+                options={citiesOf(country, province)}
+                onChange={setCity}
+              />
             </div>
             <p className="text-xs font-bold text-muted">Edad</p>
             <div className="flex flex-wrap gap-1.5">
@@ -292,6 +319,35 @@ function TabBtn({ on, onClick, children }: { on: boolean; onClick: () => void; c
     >
       {children}
     </button>
+  );
+}
+
+function LocationSelect({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[11px] font-semibold text-muted">{label}</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-cyan"
+      >
+        {options.map((o) => (
+          <option key={o} value={o}>
+            {o}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 

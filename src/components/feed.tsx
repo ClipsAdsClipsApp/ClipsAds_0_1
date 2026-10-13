@@ -31,6 +31,14 @@ export function Feed() {
   const visible = clips.filter((c) => {
     if (hidden.includes(c.id)) return false;
     if (feedMode === "discover") return true;
+    if (
+      c.province &&
+      user?.province &&
+      (c.country !== user.country || c.province !== user.province)
+    ) {
+      return false;
+    }
+    if (c.province && c.province === user?.province) return true;
     if (!user?.personalizeAds) return true;
     const product = productById(c.productId, products);
     if (user.interests.length && !user.interests.includes(product.category)) {

@@ -51,6 +51,8 @@ export interface UserProfile {
   bio: string;
   ageRange: AgeRange;
   gender: Gender;
+  country?: string;
+  province?: string;
   city: string;
   interests: CategoryId[];
   personalizeAds: boolean;
@@ -126,6 +128,8 @@ export interface Clip {
   adNo?: number;
   local: boolean;
   sponsored: boolean;
+  country?: string;
+  province?: string;
   createdAt: number;
 }
 

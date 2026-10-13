@@ -1,10 +1,11 @@
+import { remoteCreators } from "@/lib/creators-registry";
 import { CREATORS, PRODUCTS } from "@/lib/seed";
 import { useApp } from "@/lib/store";
 import type { Clip, Creator, Disclosure, Product } from "@/lib/types";
 import { percent } from "@/lib/utils";
 
 export function creatorById(id: string) {
-  return CREATORS.find((c) => c.id === id) ?? CREATORS[0];
+  return remoteCreators.get(id) ?? CREATORS.find((c) => c.id === id) ?? CREATORS[0];
 }
 
 export function productById(id: string, extras: Product[] = []) {
