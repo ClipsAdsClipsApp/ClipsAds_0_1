@@ -231,6 +231,7 @@ export function CreateClip() {
   const [category, setCategory] = useState<CategoryId>("tech");
   const [disclosure, setDisclosure] = useState<Disclosure>("organic");
   const [cta, setCta] = useState<"buy" | "book" | "directions">("buy");
+  const [address, setAddress] = useState("");
 
   useEffect(() => () => {
     if (fileUrl) URL.revokeObjectURL(fileUrl);
@@ -238,6 +239,10 @@ export function CreateClip() {
 
   async function submitClip() {
     if (!selectedFile || !name.trim()) return;
+    if (cta === "directions" && !address.trim()) {
+      setUploadError("Indica la dirección del local para el botón Cómo llegar.");
+      return;
+    }
     setUploading(true);
     setUploadProgress(0);
     setUploadError(null);
@@ -315,8 +320,8 @@ export function CreateClip() {
           category,
           city: user?.city ?? "Parla",
           distanceKm: 0.4,
-          imageUrl: "/images/headphones.jpg",
           cta,
+          address: cta === "directions" ? address.trim() : undefined,
           ctaLabel:
             cta === "buy" ? "Comprar ahora" : cta === "book" ? "Reservar ahora" : "Cómo llegar",
           fulfills: 100,
@@ -425,6 +430,14 @@ export function CreateClip() {
             Cómo llegar
           </Chip>
         </div>
+        {cta === "directions" ? (
+          <Field
+            label="Dirección del local"
+            value={address}
+            onChange={setAddress}
+            placeholder="Calle, número, ciudad"
+          />
+        ) : null}
         <button
           type="button"
           disabled={!name.trim() || !selectedFile || uploading}

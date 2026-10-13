@@ -619,7 +619,12 @@ function CtaSheet({ clip }: { clip: Clip }) {
       <OptionButton
         variant="primary"
         onClick={() => {
-          toastMsg("Abrir mapas (demo)");
+          const query = [product.address, product.city].filter(Boolean).join(", ");
+          window.open(
+            `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`,
+            "_blank",
+            "noopener,noreferrer",
+          );
           closeSheet();
         }}
       >
