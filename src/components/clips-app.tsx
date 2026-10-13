@@ -25,7 +25,10 @@ export function ClipsAds() {
     if (!firebaseConfigured) return;
     return subscribeSharedClips(
       (docs) => useApp.getState().setRemote(docs),
-      (error) => console.error("[firebase] Could not load shared clips.", error),
+      (error) => {
+        console.error("[firebase] Could not load shared clips.", error);
+        useApp.getState().toastMsg("No se pudieron cargar los clips compartidos");
+      },
     );
   }, []);
 

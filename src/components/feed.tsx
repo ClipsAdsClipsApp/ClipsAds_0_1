@@ -39,6 +39,7 @@ export function Feed() {
       return false;
     }
     if (c.province && c.province === user?.province) return true;
+    if (c.id.startsWith("mine-")) return true;
     if (!user?.personalizeAds) return true;
     const product = productById(c.productId, products);
     if (user.interests.length && !user.interests.includes(product.category)) {
