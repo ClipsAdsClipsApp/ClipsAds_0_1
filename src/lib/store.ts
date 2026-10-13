@@ -454,7 +454,12 @@ export const useApp = create<AppState>((set, get) => ({
         createdAt: clip.createdAt,
       }).catch((error: unknown) => {
         console.error("[firebase] Could not share clip.", error);
-        get().toastMsg("No se pudo compartir el clip");
+        const code = (error as { code?: string }).code;
+        get().toastMsg(
+          code === "permission-denied"
+            ? "Firebase rechazó el clip: publica las reglas de Firestore"
+            : `No se pudo compartir el clip${code ? ` (${code})` : ""}`,
+        );
       });
     }
     get().toastMsg("Clip publicado");
