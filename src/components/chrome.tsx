@@ -101,7 +101,7 @@ export function BottomNav() {
   const tab = useApp((s) => s.tab);
   const setTab = useApp((s) => s.setTab);
   return (
-    <nav className="absolute inset-x-0 bottom-0 z-20 flex justify-around border-t border-line bg-bg/90 px-1 pb-[calc(6px+env(safe-area-inset-bottom))] pt-1.5 backdrop-blur-xl">
+    <nav className="absolute bottom-0 left-1/2 z-20 flex w-[65%] -translate-x-1/2 justify-around rounded-t-[18px] border border-line border-b-0 bg-bg/36 px-1 pb-[calc(6px+env(safe-area-inset-bottom))] pt-1.5 backdrop-blur-xl">
       {NAV.map((item) => {
         const on = tab === item.id;
         const Icon = item.icon;
@@ -112,7 +112,7 @@ export function BottomNav() {
             type="button"
             onClick={() => setTab(item.id)}
             className={cn(
-              "flex min-w-12 flex-col items-center gap-0.5 px-2 py-1 text-[10px] font-semibold",
+              "flex min-w-0 flex-1 flex-col items-center gap-0.5 px-0.5 py-1 text-[10px] font-semibold",
               on ? "text-fg" : "text-subtle",
             )}
           >

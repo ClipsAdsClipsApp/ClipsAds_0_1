@@ -309,7 +309,7 @@ function ClipOverlay({ clip, active }: { clip: Clip; active: boolean }) {
         </Action>
       </div>
 
-      <div className="absolute inset-x-3 bottom-[62px] z-10 rounded-[16px] border border-line bg-[#121218]/78 px-2.5 py-2 backdrop-blur-xl">
+      <div className="absolute bottom-[62px] left-[17%] right-[17%] z-10 rounded-[16px] border border-line bg-[#121218]/31 px-2.5 py-2 backdrop-blur-xl">
         <button
           type="button"
           className="w-full text-left"
