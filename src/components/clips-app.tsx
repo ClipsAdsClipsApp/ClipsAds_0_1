@@ -5,7 +5,7 @@ import { Onboarding } from "@/components/onboarding";
 import { CreateClip, Explore, Library, Profile } from "@/components/screens";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { firebaseConfigured } from "@/lib/firebase/client";
-import { subscribeSharedClips } from "@/lib/firebase/clips";
+import { subscribeSharedClips, syncSharedAuthor } from "@/lib/firebase/clips";
 import { getMyProfile } from "@/lib/profile";
 import { useApp } from "@/lib/store";
 import type { Role, UserProfile } from "@/lib/types";
@@ -13,6 +13,12 @@ import type { Role, UserProfile } from "@/lib/types";
 export function ClipsAds() {
   const hydrate = useApp((s) => s.hydrate);
   const user = useApp((s) => s.user);
+  const authorId = useApp((s) => s.user?.id);
+  const authorUsername = useApp((s) => s.user?.username);
+  const authorDisplayName = useApp((s) => s.user?.displayName);
+  const authorAvatarUrl = useApp((s) => s.user?.avatarUrl);
+  const authorRole = useApp((s) => s.user?.role);
+  const authorCity = useApp((s) => s.user?.city);
   const tab = useApp((s) => s.tab);
   const { user: session, isPending } = useCurrentUserState();
   const [profileReady, setProfileReady] = useState(false);
@@ -38,6 +44,19 @@ export function ClipsAds() {
       },
     );
   }, []);
+
+  useEffect(() => {
+    if (!firebaseConfigured || !authorId || !authorUsername || !authorDisplayName || !authorRole || !authorCity) return;
+    void syncSharedAuthor(authorId, {
+      username: authorUsername,
+      displayName: authorDisplayName,
+      avatarUrl: authorAvatarUrl || "/avatars/user.jpg",
+      role: authorRole,
+      city: authorCity,
+    }).catch((error: unknown) => {
+      console.error("[firebase] Could not sync clip author profile.", error);
+    });
+  }, [authorAvatarUrl, authorCity, authorDisplayName, authorId, authorRole, authorUsername]);
 
   useEffect(() => {
     if (isPending) return;

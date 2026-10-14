@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { uploadPresigned } from "@vercel/blob/client";
+import { Trash2 } from "lucide-react";
 import { BottomNav, OptionButton } from "@/components/chrome";
 import {
   IconChart,
@@ -17,7 +18,8 @@ import type { CategoryId, Clip, Disclosure, UserProfile } from "@/lib/types";
 import { cn, formatCount, formatPrice } from "@/lib/utils";
 import { UserButton } from "@/lib/auth/gates";
 import { signOut } from "@/lib/firebase/auth";
-import { getFirebaseAuth } from "@/lib/firebase/client";
+import { firebaseConfigured, getFirebaseAuth } from "@/lib/firebase/client";
+import { subscribeMySharedClips } from "@/lib/firebase/clips";
 import { saveMyProfile } from "@/lib/profile";
 
 export function Explore() {
@@ -484,21 +486,52 @@ function Field({
 export function Library() {
   const clips = useApp((s) => s.clips);
   const products = useApp((s) => s.products);
+  const userId = useApp((s) => s.user?.id);
   const saved = useApp((s) => s.saved);
   const setTab = useApp((s) => s.setTab);
   const setActiveClip = useApp((s) => s.setActiveClip);
+  const deletePublishedClip = useApp((s) => s.deletePublishedClip);
+  const deleteAllPublishedClips = useApp((s) => s.deleteAllPublishedClips);
   const [mode, setMode] = useState<"published" | "saved">("published");
-  const mine = clips.filter(
-    (c) => c.id.startsWith("mine-") || c.authorId === "me-local",
-  );
+  const [remoteMine, setRemoteMine] = useState<
+    { authorId: string; clip: Clip; product: ReturnType<typeof productById> }[]
+  >([]);
+  useEffect(() => {
+    if (!firebaseConfigured || !userId) {
+      setRemoteMine([]);
+      return;
+    }
+    return subscribeMySharedClips(
+      userId,
+      (docs) =>
+        setRemoteMine(
+          docs.map((entry) => ({
+            authorId: entry.authorId,
+            clip: entry.clip,
+            product: entry.product,
+          })),
+        ),
+      (error) => {
+        console.error("[firebase] Could not load my clips.", error);
+        useApp.getState().toastMsg("No se pudieron cargar tus clips");
+      },
+    );
+  }, [userId]);
+  const currentRemoteMine = remoteMine.filter((entry) => entry.authorId === userId);
+  const remoteIds = new Set(currentRemoteMine.map((entry) => entry.clip.id));
+  const mine = [
+    ...currentRemoteMine,
+    ...clips
+      .filter((clip) => clip.authorId === userId && !remoteIds.has(clip.id))
+      .map((clip) => ({ clip, product: productById(clip.productId, products) })),
+  ];
   const savedClips = clips.filter((c) => saved.includes(c.id));
-  const list = mode === "saved" ? savedClips : mine;
 
   return (
     <div className="relative flex h-full flex-col bg-bg">
       <header className="px-4 pt-[calc(18px+env(safe-area-inset-top))]">
         <h1 className="font-display text-2xl font-bold">Mis clips</h1>
-        <p className="text-xs text-muted">Publicados en esta demo y guardados.</p>
+        <p className="text-xs text-muted">Tus publicaciones y clips guardados.</p>
         <div className="mt-3 flex gap-1 rounded-[14px] bg-fg/5 p-1">
           <Chip on={mode === "published"} onClick={() => setMode("published")}>
             Publicados
@@ -507,35 +540,67 @@ export function Library() {
             Guardados
           </Chip>
         </div>
+        {mode === "published" ? (
+          <button
+            type="button"
+            disabled={!mine.length}
+            onClick={() => {
+              if (window.confirm(`¿Eliminar tus ${mine.length} clips publicados? Esta acción no se puede deshacer.`)) {
+                void deleteAllPublishedClips();
+              }
+            }}
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-[12px] border border-danger/40 px-3 py-2 text-xs font-bold text-danger disabled:opacity-40"
+          >
+            <Trash2 size={15} /> Eliminar todos mis clips
+          </button>
+        ) : null}
       </header>
       <div className="scrollbar-none flex-1 overflow-y-auto px-4 pb-24 pt-4">
-        {list.length === 0 ? (
+        {(mode === "saved" ? savedClips.length : mine.length) === 0 ? (
           <p className="py-10 text-center text-sm text-muted">
             Todavía no hay clips en esta lista.
           </p>
         ) : (
           <div className="space-y-2">
-            {list.map((c) => {
-              const p = productById(c.productId, products);
-              const stats = clipStats(c);
+            {(mode === "saved"
+              ? savedClips.map((clip) => ({ clip, product: productById(clip.productId, products) }))
+              : mine
+            ).map(({ clip, product }) => {
+              const stats = clipStats(clip);
               return (
-                <button
-                  key={c.id}
-                  type="button"
-                  className="flex w-full gap-3 rounded-2xl border border-line bg-surface p-2 text-left"
-                  onClick={() => {
-                    setActiveClip(c.id);
-                    setTab("home");
-                  }}
-                >
-                  <ClipThumb clip={c} fallback={p.imageUrl} className="h-16 w-20 rounded-xl object-cover" />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-bold">{p.name}</div>
-                    <div className="text-[11px] text-muted">
-                      {formatCount(c.likes)} me gusta · {stats.wouldBuy}% lo compraría
+                <div key={clip.id} className="flex items-center gap-2 rounded-2xl border border-line bg-surface p-2">
+                  <button
+                    type="button"
+                    className="flex min-w-0 flex-1 gap-3 text-left"
+                    onClick={() => {
+                      setActiveClip(clip.id);
+                      setTab("home");
+                    }}
+                  >
+                    <ClipThumb clip={clip} fallback={product.imageUrl} className="h-16 w-20 rounded-xl object-cover" />
+                    <div className="min-w-0 flex-1 self-center">
+                      <div className="truncate text-sm font-bold">{product.name}</div>
+                      <div className="text-[11px] text-muted">
+                        {formatCount(clip.likes)} me gusta · {stats.wouldBuy}% lo compraría
+                      </div>
                     </div>
-                  </div>
-                </button>
+                  </button>
+                  {mode === "published" ? (
+                    <button
+                      type="button"
+                      aria-label={`Eliminar ${product.name}`}
+                      title="Eliminar clip"
+                      onClick={() => {
+                        if (window.confirm(`¿Eliminar “${product.name}”? Esta acción no se puede deshacer.`)) {
+                          void deletePublishedClip(clip.id);
+                        }
+                      }}
+                      className="grid size-10 shrink-0 place-items-center rounded-xl text-danger hover:bg-danger/10"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  ) : null}
+                </div>
               );
             })}
           </div>

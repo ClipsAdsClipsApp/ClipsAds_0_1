@@ -11,6 +11,8 @@ import {
   IconSound,
 } from "@/components/icons";
 import { clipStats, DISCLOSURE_HINT, DISCLOSURE_LABEL, productById, useAuthor, useProduct } from "@/lib/catalog";
+import { firebaseConfigured } from "@/lib/firebase/client";
+import { subscribeClipComments, subscribeClipVotes } from "@/lib/firebase/clips";
 import { useApp } from "@/lib/store";
 import type { Clip, CtaKind, Disclosure } from "@/lib/types";
 import { cn, formatCount, formatPrice } from "@/lib/utils";
@@ -231,12 +233,15 @@ function ClipSlide({ clip, active }: { clip: Clip; active: boolean }) {
         </button>
       ) : null}
 
-      <ClipOverlay clip={clip} />
+      <ClipOverlay clip={clip} active={active} />
     </section>
   );
 }
 
-function ClipOverlay({ clip }: { clip: Clip }) {
+function ClipOverlay({ clip, active }: { clip: Clip; active: boolean }) {
+  const userId = useApp((s) => s.user?.id);
+  const clipVotes = useApp((s) => s.clipVotes[clip.id]);
+  const setClipVotes = useApp((s) => s.setClipVotes);
   const product = useProduct(clip.productId);
   const saved = useApp((s) => s.saved);
   const toggleSave = useApp((s) => s.toggleSave);
@@ -244,12 +249,39 @@ function ClipOverlay({ clip }: { clip: Clip }) {
   const shareClip = useApp((s) => s.shareClip);
   const setUsed = useApp((s) => s.setUsed);
   const tried = useApp((s) => s.tried[clip.id]);
-  const stats = clipStats(clip);
+  const stats = clipStats({
+    ...clip,
+    adYes: (clip.adYes ?? 0) + (clipVotes?.adYes ?? 0),
+    adNo: (clip.adNo ?? 0) + (clipVotes?.adNo ?? 0),
+  });
   const voteAdLike = useApp((s) => s.voteAdLike);
-  const myAd = useApp((s) => s.adLike[clip.id]);
+  const localAd = useApp((s) => s.adLike[clip.id]);
+  const myAd = clipVotes ? clipVotes.myAdLike : localAd;
   const isSaved = saved.includes(clip.id);
-  const usedYes = tried === "casual" || tried === "verified";
-  const usedNo = tried === "no";
+  const myUsed = clipVotes
+    ? clipVotes.myUsed
+    : tried === "casual" || tried === "verified"
+      ? "yes"
+      : tried === "no"
+        ? "no"
+        : undefined;
+  const usedTotal = (clipVotes?.usedYes ?? 0) + (clipVotes?.usedNo ?? 0);
+  const usedYesPct = usedTotal ? Math.round(((clipVotes?.usedYes ?? 0) / usedTotal) * 100) : 0;
+  const usedNoPct = usedTotal ? 100 - usedYesPct : 0;
+  const usedYes = myUsed === "yes";
+  const usedNo = myUsed === "no";
+
+  useEffect(() => {
+    if (!active || !userId || !firebaseConfigured) return;
+    return subscribeClipVotes(
+      clip.id,
+      userId,
+      (summary) => setClipVotes(clip.id, summary),
+      (error) => {
+        console.error("[firebase] Could not load clip votes.", error);
+      },
+    );
+  }, [active, clip.id, setClipVotes, userId]);
 
   return (
     <>
@@ -312,10 +344,10 @@ function ClipOverlay({ clip }: { clip: Clip }) {
 
         <div className="mt-1.5 flex items-center gap-1.5">
           <p className="min-w-0 flex-1 text-[10px] font-extrabold leading-tight">
-            ¿Lo has usado?
+            ¿Lo usarías?
           </p>
-          <Choice label="Sí" on={usedYes} onClick={() => setUsed(clip.id, "yes")} />
-          <Choice label="No" on={usedNo} onClick={() => setUsed(clip.id, "no")} />
+          <Choice label={`Sí ${usedYesPct}%`} on={usedYes} onClick={() => setUsed(clip.id, "yes")} />
+          <Choice label={`No ${usedNoPct}%`} on={usedNo} onClick={() => setUsed(clip.id, "no")} />
         </div>
 
         <button
@@ -570,10 +602,26 @@ function WouldSheet({ clipId }: { clipId: string }) {
 }
 
 function CommentsSheet({ clipId }: { clipId: string }) {
+  const sheet = useApp((s) => s.sheet);
   const allComments = useApp((s) => s.comments);
   const comments = allComments.filter((c) => c.clipId === clipId);
   const addComment = useApp((s) => s.addComment);
+  const setSharedComments = useApp((s) => s.setSharedComments);
+  const toastMsg = useApp((s) => s.toastMsg);
   const [text, setText] = useState("");
+
+  useEffect(() => {
+    if (sheet !== "comments" || !firebaseConfigured) return;
+    return subscribeClipComments(
+      clipId,
+      (sharedComments) => setSharedComments(clipId, sharedComments),
+      (error) => {
+        console.error("[firebase] Could not load clip comments.", error);
+        toastMsg("No se pudieron cargar los comentarios");
+      },
+    );
+  }, [clipId, setSharedComments, sheet, toastMsg]);
+
   return (
     <>
       <form
@@ -581,7 +629,7 @@ function CommentsSheet({ clipId }: { clipId: string }) {
         onSubmit={(e) => {
           e.preventDefault();
           if (!text.trim()) return;
-          addComment(clipId, text.trim());
+          void addComment(clipId, text.trim());
           setText("");
         }}
       >

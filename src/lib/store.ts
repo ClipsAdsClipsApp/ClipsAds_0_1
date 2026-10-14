@@ -10,7 +10,15 @@ import type {
   UserProfile,
 } from "@/lib/types";
 import { firebaseConfigured } from "@/lib/firebase/client";
-import { publishSharedClip, type SharedClipDoc } from "@/lib/firebase/clips";
+import {
+  deleteAllSharedClips,
+  deleteSharedClip,
+  publishClipComment,
+  publishSharedClip,
+  saveClipVote,
+  type ClipVoteSummary,
+  type SharedClipDoc,
+} from "@/lib/firebase/clips";
 import { remoteCreators } from "@/lib/creators-registry";
 import { loadUserAppState, saveUserAppState } from "@/lib/firebase/user-state";
 
@@ -68,7 +76,10 @@ interface Persisted {
 interface AppState extends Persisted {
   ready: boolean;
   remote: SharedClipDoc[];
+  clipVotes: Record<string, ClipVoteSummary>;
   setRemote: (docs: SharedClipDoc[]) => void;
+  setClipVotes: (clipId: string, summary: ClipVoteSummary) => void;
+  setSharedComments: (clipId: string, comments: Comment[]) => void;
   tab: Tab;
   feedMode: FeedMode;
   activeClipId: string;
@@ -91,13 +102,15 @@ interface AppState extends Persisted {
   toggleLike: (clipId: string) => void;
   toggleSave: (clipId: string) => void;
   toggleFollow: (authorId: string) => void;
-  addComment: (clipId: string, text: string) => void;
+  addComment: (clipId: string, text: string) => Promise<void>;
   setTried: (clipId: string, value: "verified" | "casual" | "no") => void;
   setUsed: (clipId: string, value: "yes" | "no") => void;
   voteWould: (clipId: string, value: "yes" | "no") => void;
   voteAdLike: (clipId: string, value: "yes" | "no") => void;
   voteFulfills: (clipId: string, value: "yes" | "mid" | "no") => void;
   hideClip: (clipId: string) => void;
+  deletePublishedClip: (clipId: string) => Promise<void>;
+  deleteAllPublishedClips: () => Promise<void>;
   shareClip: (clipId: string) => Promise<void>;
   publishClip: (clip: Clip, product?: Product) => void;
 }
@@ -153,6 +166,7 @@ export const useApp = create<AppState>((set, get) => ({
   ...empty,
   ready: false,
   remote: [],
+  clipVotes: {},
   tab: "home",
   feedMode: "for-you",
   activeClipId: CLIPS[0]?.id ?? "c1",
@@ -208,6 +222,7 @@ export const useApp = create<AppState>((set, get) => ({
     };
     set({
       ...loaded,
+      clipVotes: {},
       ...mergeRemote(
         base.clips.length ? base.clips : CLIPS,
         base.products.length ? base.products : PRODUCTS,
@@ -219,6 +234,22 @@ export const useApp = create<AppState>((set, get) => ({
 
   setRemote: (docs) => {
     set((s) => ({ remote: docs, ...mergeRemote(s.clips, s.products, docs) }));
+  },
+
+  setClipVotes: (clipId, summary) =>
+    set((s) => ({ clipVotes: { ...s.clipVotes, [clipId]: summary } })),
+
+  setSharedComments: (clipId, sharedComments) => {
+    const seeded = COMMENTS.filter((comment) => comment.clipId === clipId);
+    const comments = [
+      ...sharedComments,
+      ...seeded.filter((comment) => !sharedComments.some((entry) => entry.id === comment.id)),
+    ];
+    const count = sharedComments.length + seeded.length;
+    set((s) => ({
+      comments: [...comments, ...s.comments.filter((comment) => comment.clipId !== clipId)],
+      clips: s.clips.map((clip) => (clip.id === clipId ? { ...clip, comments: count } : clip)),
+    }));
   },
 
   persist: () => {
@@ -236,12 +267,12 @@ export const useApp = create<AppState>((set, get) => ({
   login: (user, opts) => {
     void opts;
     const same = get().user?.id === user.id;
-    set({ user, tab: same ? get().tab : "home" });
+    set({ user, clipVotes: same ? get().clipVotes : {}, tab: same ? get().tab : "home" });
     get().persist();
   },
 
   logout: () => {
-    set({ user: null, tab: "home", sheet: null });
+    set({ user: null, clipVotes: {}, tab: "home", sheet: null });
     get().persist();
   },
 
@@ -296,9 +327,19 @@ export const useApp = create<AppState>((set, get) => ({
     get().toastMsg(on ? "Has dejado de seguir" : "Ahora sigues esta cuenta");
   },
 
-  addComment: (clipId, text) => {
+  addComment: async (clipId, text) => {
     const user = get().user;
     if (!user) return;
+    if (firebaseConfigured) {
+      try {
+        await publishClipComment(clipId, user.id, user.username, text);
+        get().toastMsg("Comentario publicado");
+      } catch (error) {
+        console.error("[firebase] Could not publish comment.", error);
+        get().toastMsg("No se pudo publicar el comentario");
+      }
+      return;
+    }
     const comment: Comment = {
       id: `cm-${Date.now()}`,
       clipId,
@@ -328,12 +369,18 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   setUsed: (clipId, value) => {
+    const user = get().user;
     set({
       tried: { ...get().tried, [clipId]: value === "yes" ? "casual" : "no" },
-      sheet: value === "no" ? "would" : null,
-      sheetClipId: clipId,
+      sheet: null,
     });
     get().persist();
+    if (firebaseConfigured && user) {
+      void saveClipVote(clipId, user.id, { used: value }).catch((error: unknown) => {
+        console.error("[firebase] Could not save clip survey vote.", error);
+        get().toastMsg("No se pudo guardar tu respuesta");
+      });
+    }
   },
 
   voteWould: (clipId, value) => {
@@ -354,6 +401,16 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   voteAdLike: (clipId, value) => {
+    const user = get().user;
+    if (firebaseConfigured && user) {
+      set({ adLike: { ...get().adLike, [clipId]: value } });
+      get().persist();
+      void saveClipVote(clipId, user.id, { adLike: value }).catch((error: unknown) => {
+        console.error("[firebase] Could not save ad survey vote.", error);
+        get().toastMsg("No se pudo guardar tu respuesta");
+      });
+      return;
+    }
     const prev = get().adLike[clipId];
     if (prev === value) return;
     const clips = get().clips.map((c) => {
@@ -405,6 +462,51 @@ export const useApp = create<AppState>((set, get) => ({
     get().toastMsg("Clip ocultado");
   },
 
+  deletePublishedClip: async (clipId) => {
+    const user = get().user;
+    const clip = get().clips.find((entry) => entry.id === clipId);
+    if (!user || (clip && clip.authorId !== user.id)) return;
+    if (!clip && !firebaseConfigured) return;
+    try {
+      if (firebaseConfigured) await deleteSharedClip(clipId);
+      set((s) => ({
+        clips: s.clips.filter((entry) => entry.id !== clipId),
+        products: s.products.filter((entry) => entry.id !== (clip?.productId ?? clipId)),
+        remote: s.remote.filter((entry) => entry.clip.id !== clipId),
+        comments: s.comments.filter((entry) => entry.clipId !== clipId),
+        sheet: null,
+      }));
+      get().persist();
+      get().toastMsg("Clip eliminado");
+    } catch (error) {
+      console.error("[firebase] Could not delete clip.", error);
+      get().toastMsg("No se pudo eliminar el clip; revisa las reglas de Firestore");
+    }
+  },
+
+  deleteAllPublishedClips: async () => {
+    const user = get().user;
+    if (!user) return;
+    try {
+      if (firebaseConfigured) await deleteAllSharedClips(user.id);
+      const clipIds = new Set(
+        get().clips.filter((clip) => clip.authorId === user.id).map((clip) => clip.id),
+      );
+      set((s) => ({
+        clips: s.clips.filter((clip) => clip.authorId !== user.id),
+        products: s.products.filter((product) => !clipIds.has(product.id)),
+        remote: s.remote.filter((entry) => entry.authorId !== user.id),
+        comments: s.comments.filter((comment) => !clipIds.has(comment.clipId)),
+        sheet: null,
+      }));
+      get().persist();
+      get().toastMsg("Tus clips publicados se eliminaron");
+    } catch (error) {
+      console.error("[firebase] Could not delete all clips.", error);
+      get().toastMsg("No se pudieron eliminar tus clips; revisa las reglas de Firestore");
+    }
+  },
+
   shareClip: async (clipId) => {
     const clips = get().clips.map((c) =>
       c.id === clipId ? { ...c, shares: c.shares + 1 } : c,
@@ -446,7 +548,7 @@ export const useApp = create<AppState>((set, get) => ({
         author: {
           username: user.username,
           displayName: user.displayName,
-          avatarUrl: /^(\/|https?:)/.test(avatar) ? avatar : "/avatars/user.jpg",
+          avatarUrl: avatar || "/avatars/user.jpg",
           role: user.role,
           city: user.city,
         },
