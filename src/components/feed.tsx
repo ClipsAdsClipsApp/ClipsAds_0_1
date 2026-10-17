@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Copy, Mail, MessageCircle, Send } from "lucide-react";
+import { BarChart3, Copy, Mail, MessageCircle, Send } from "lucide-react";
 import { BottomNav, LogoMark, OptionButton, Sheet, Wordmark } from "@/components/chrome";
 import {
   BrandActionIcon,
@@ -14,7 +14,8 @@ import { clipStats, DISCLOSURE_HINT, DISCLOSURE_LABEL, productById, useAuthor, u
 import { firebaseConfigured } from "@/lib/firebase/client";
 import { subscribeClipComments, subscribeClipVotes } from "@/lib/firebase/clips";
 import { useApp } from "@/lib/store";
-import type { Clip, CtaKind, Disclosure } from "@/lib/types";
+import { CommunityInsightsModal, PostPurchaseFeedback } from "@/components/product-feedback";
+import type { Clip, CtaKind, Disclosure, Product } from "@/lib/types";
 import { cn, formatCount, formatPrice } from "@/lib/utils";
 
 export function Feed() {
@@ -480,6 +481,7 @@ function ClipSheets() {
   const clipId = useApp((s) => s.sheetClipId);
   const clips = useApp((s) => s.clips);
   const closeSheet = useApp((s) => s.closeSheet);
+  const [feedbackProduct, setFeedbackProduct] = useState<Product | null>(null);
   const clip = clips.find((c) => c.id === clipId) ?? clips[0];
   const product = useProduct(clip?.productId ?? "headphones");
   const author = useAuthor(clip?.authorId ?? "ana");
@@ -500,7 +502,13 @@ function ClipSheets() {
         <ShareSheet />
       </Sheet>
       <Sheet open={sheet === "cta"} title={product.ctaLabel} onClose={closeSheet}>
-        <CtaSheet clip={clip} />
+        <CtaSheet
+          clip={clip}
+          onPurchase={() => {
+            closeSheet();
+            setFeedbackProduct(product);
+          }}
+        />
       </Sheet>
       <Sheet open={sheet === "more"} title="Opciones del clip" onClose={closeSheet}>
         <MoreSheet clip={clip} />
@@ -511,6 +519,13 @@ function ClipSheets() {
       <Sheet open={sheet === "product"} title="Ficha social" onClose={closeSheet}>
         <ProductSheet clip={clip} disclosure={clip.disclosure} author={author.displayName} />
       </Sheet>
+      {feedbackProduct ? (
+        <PostPurchaseFeedback
+          productId={feedbackProduct.id}
+          productName={feedbackProduct.name}
+          onClose={() => setFeedbackProduct(null)}
+        />
+      ) : null}
     </>
   );
 }
@@ -659,7 +674,7 @@ function CommentsSheet({ clipId }: { clipId: string }) {
   );
 }
 
-function CtaSheet({ clip }: { clip: Clip }) {
+function CtaSheet({ clip, onPurchase }: { clip: Clip; onPurchase: () => void }) {
   const product = useProduct(clip.productId);
   const toastMsg = useApp((s) => s.toastMsg);
   const closeSheet = useApp((s) => s.closeSheet);
@@ -671,12 +686,9 @@ function CtaSheet({ clip }: { clip: Clip }) {
         </p>
         <OptionButton
           variant="mint"
-          onClick={() => {
-            toastMsg("Demo: redirección a tienda simulada");
-            closeSheet();
-          }}
+          onClick={onPurchase}
         >
-          Ir a la tienda
+          Confirmar compra
         </OptionButton>
         <OptionButton variant="ghost" onClick={closeSheet}>
           Seguir viendo
@@ -815,6 +827,7 @@ function ProductSheet({
   disclosure: Disclosure;
   author: string;
 }) {
+  const [insightsOpen, setInsightsOpen] = useState(false);
   const product = useProduct(clip.productId);
   const stats = clipStats(clip);
   return (
@@ -835,22 +848,19 @@ function ProductSheet({
         <Mini stat={`${stats.wouldBuy}%`} label="Compraría" />
         <Mini stat={`${product.verifiedOpinions}`} label="Verificadas" />
       </div>
-      <div>
-        <p className="mb-1 text-xs font-bold uppercase tracking-wide text-subtle">Ventajas</p>
-        <ul className="space-y-1 text-sm">
-          {product.pros.map((p) => (
-            <li key={p}>· {p}</li>
-          ))}
-        </ul>
-      </div>
-      <div>
-        <p className="mb-1 text-xs font-bold uppercase tracking-wide text-subtle">Problemas repetidos</p>
-        <ul className="space-y-1 text-sm text-muted">
-          {product.cons.map((p) => (
-            <li key={p}>· {p}</li>
-          ))}
-        </ul>
-      </div>
+      <button
+        type="button"
+        onClick={() => setInsightsOpen(true)}
+        className="flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-bg-elevated px-3 py-2.5 text-xs font-semibold text-muted transition-colors hover:text-fg"
+      >
+        <BarChart3 size={15} /> Opinión de la comunidad
+      </button>
+      <CommunityInsightsModal
+        open={insightsOpen}
+        productId={product.id}
+        productName={product.name}
+        onClose={() => setInsightsOpen(false)}
+      />
       <div>
         <p className="mb-1 text-xs font-bold uppercase tracking-wide text-subtle">Dónde</p>
         <ul className="space-y-1 text-sm">{product.where.map((w) => <li key={w}>{w}</li>)}</ul>

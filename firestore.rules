@@ -2,6 +2,44 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    function productVotePath(productId, userId) {
+      return /databases/$(database)/documents/product-insights/$(productId)/votes/$(userId);
+    }
+
+    function selected(vote, field, label) {
+      return vote.keys().hasAny([field])
+        && vote[field] is list
+        && vote[field].hasAny([label]);
+    }
+
+    function newInsightMatchesVote(productId) {
+      let vote = getAfter(productVotePath(productId, request.auth.uid)).data;
+      return vote.userId == request.auth.uid
+        && vote.updatedAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.totalFeedback == 1
+        && request.resource.data.advantages["Buena calidad"] == (selected(vote, "advantages", "Buena calidad") ? 1 : 0)
+        && request.resource.data.advantages["Materiales resistentes"] == (selected(vote, "advantages", "Materiales resistentes") ? 1 : 0)
+        && request.resource.data.advantages["Fácil de usar"] == (selected(vote, "advantages", "Fácil de usar") ? 1 : 0)
+        && request.resource.data.issues["Empaque mejorable"] == (selected(vote, "issues", "Empaque mejorable") ? 1 : 0)
+        && request.resource.data.issues["Atención lenta"] == (selected(vote, "issues", "Atención lenta") ? 1 : 0);
+    }
+
+    function updatedInsightMatchesVote(productId) {
+      let votePath = productVotePath(productId, request.auth.uid);
+      let oldVote = exists(votePath) ? get(votePath).data : { advantages: [], issues: [] };
+      let nextVote = getAfter(votePath).data;
+      return nextVote.userId == request.auth.uid
+        && nextVote.updatedAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.totalFeedback == resource.data.totalFeedback + (exists(votePath) ? 0 : 1)
+        && request.resource.data.advantages["Buena calidad"] == resource.data.advantages["Buena calidad"] - (selected(oldVote, "advantages", "Buena calidad") ? 1 : 0) + (selected(nextVote, "advantages", "Buena calidad") ? 1 : 0)
+        && request.resource.data.advantages["Materiales resistentes"] == resource.data.advantages["Materiales resistentes"] - (selected(oldVote, "advantages", "Materiales resistentes") ? 1 : 0) + (selected(nextVote, "advantages", "Materiales resistentes") ? 1 : 0)
+        && request.resource.data.advantages["Fácil de usar"] == resource.data.advantages["Fácil de usar"] - (selected(oldVote, "advantages", "Fácil de usar") ? 1 : 0) + (selected(nextVote, "advantages", "Fácil de usar") ? 1 : 0)
+        && request.resource.data.issues["Empaque mejorable"] == resource.data.issues["Empaque mejorable"] - (selected(oldVote, "issues", "Empaque mejorable") ? 1 : 0) + (selected(nextVote, "issues", "Empaque mejorable") ? 1 : 0)
+        && request.resource.data.issues["Atención lenta"] == resource.data.issues["Atención lenta"] - (selected(oldVote, "issues", "Atención lenta") ? 1 : 0) + (selected(nextVote, "issues", "Atención lenta") ? 1 : 0);
+    }
+
     function ownsClip(clipId) {
       return request.auth != null
         && get(/databases/$(database)/documents/clips/$(clipId)).data.authorId == request.auth.uid;
@@ -9,6 +47,102 @@ service cloud.firestore {
 
     match /users/{userId}/{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /product-insights/{productId} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && newInsightMatchesVote(productId)
+        && request.resource.data.productId == productId
+        && request.resource.data.keys().hasOnly([
+          "productId", "advantages", "issues", "totalFeedback", "updatedAt"
+        ])
+        && request.resource.data.advantages is map
+        && request.resource.data.advantages.keys().hasOnly([
+          "Buena calidad", "Materiales resistentes", "Fácil de usar"
+        ])
+        && request.resource.data.advantages.keys().hasAll([
+          "Buena calidad", "Materiales resistentes", "Fácil de usar"
+        ])
+        && request.resource.data.advantages["Buena calidad"] is int
+        && request.resource.data.advantages["Buena calidad"] >= 0
+        && request.resource.data.advantages["Materiales resistentes"] is int
+        && request.resource.data.advantages["Materiales resistentes"] >= 0
+        && request.resource.data.advantages["Fácil de usar"] is int
+        && request.resource.data.advantages["Fácil de usar"] >= 0
+        && request.resource.data.issues is map
+        && request.resource.data.issues.keys().hasOnly([
+          "Empaque mejorable", "Atención lenta"
+        ])
+        && request.resource.data.issues.keys().hasAll([
+          "Empaque mejorable", "Atención lenta"
+        ])
+        && request.resource.data.issues["Empaque mejorable"] is int
+        && request.resource.data.issues["Empaque mejorable"] >= 0
+        && request.resource.data.issues["Atención lenta"] is int
+        && request.resource.data.issues["Atención lenta"] >= 0
+        && request.resource.data.totalFeedback is int
+        && request.resource.data.totalFeedback >= 0
+        && request.resource.data.updatedAt is timestamp;
+      allow update: if request.auth != null
+        && updatedInsightMatchesVote(productId)
+        && request.resource.data.productId == productId
+        && request.resource.data.keys().hasOnly([
+          "productId", "advantages", "issues", "totalFeedback", "updatedAt"
+        ])
+        && request.resource.data.advantages is map
+        && request.resource.data.advantages.keys().hasOnly([
+          "Buena calidad", "Materiales resistentes", "Fácil de usar"
+        ])
+        && request.resource.data.advantages.keys().hasAll([
+          "Buena calidad", "Materiales resistentes", "Fácil de usar"
+        ])
+        && request.resource.data.advantages["Buena calidad"] is int
+        && request.resource.data.advantages["Buena calidad"] >= 0
+        && request.resource.data.advantages["Materiales resistentes"] is int
+        && request.resource.data.advantages["Materiales resistentes"] >= 0
+        && request.resource.data.advantages["Fácil de usar"] is int
+        && request.resource.data.advantages["Fácil de usar"] >= 0
+        && request.resource.data.issues is map
+        && request.resource.data.issues.keys().hasOnly([
+          "Empaque mejorable", "Atención lenta"
+        ])
+        && request.resource.data.issues.keys().hasAll([
+          "Empaque mejorable", "Atención lenta"
+        ])
+        && request.resource.data.issues["Empaque mejorable"] is int
+        && request.resource.data.issues["Empaque mejorable"] >= 0
+        && request.resource.data.issues["Atención lenta"] is int
+        && request.resource.data.issues["Atención lenta"] >= 0
+        && request.resource.data.totalFeedback is int
+        && request.resource.data.totalFeedback >= 0
+        && request.resource.data.updatedAt is timestamp;
+      allow delete: if false;
+
+      match /votes/{userId} {
+        allow read: if true;
+        allow create, update: if request.auth != null
+          && existsAfter(/databases/$(database)/documents/product-insights/$(productId))
+          && getAfter(/databases/$(database)/documents/product-insights/$(productId)).data.updatedAt == request.time
+          && request.auth.uid == userId
+          && request.resource.data.productId == productId
+          && request.resource.data.userId == userId
+          && request.resource.data.keys().hasOnly([
+            "productId", "userId", "advantages", "issues", "updatedAt"
+          ])
+          && request.resource.data.advantages is list
+          && request.resource.data.advantages.size() <= 3
+          && request.resource.data.advantages.toSet().hasOnly([
+            "Buena calidad", "Materiales resistentes", "Fácil de usar"
+          ])
+          && request.resource.data.issues is list
+          && request.resource.data.issues.size() <= 2
+          && request.resource.data.issues.toSet().hasOnly([
+            "Empaque mejorable", "Atención lenta"
+          ])
+          && request.resource.data.updatedAt is timestamp;
+        allow delete: if false;
+      }
     }
 
     // Clips compartidos: lectura publica, escritura solo del autor.
