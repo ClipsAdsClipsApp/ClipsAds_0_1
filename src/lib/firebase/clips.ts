@@ -1,6 +1,8 @@
 import {
   addDoc,
+  collectionGroup,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -26,17 +28,24 @@ export type SharedClipDoc = {
 };
 
 export type ClipVoteSummary = {
+  likes: number;
   adYes: number;
   adNo: number;
   usedYes: number;
   usedNo: number;
+  wouldYes: number;
+  wouldNo: number;
+  myLiked?: boolean;
   myAdLike?: "yes" | "no";
   myUsed?: "yes" | "no";
+  myWould?: "yes" | "no";
 };
 
 export type SharedComment = Comment & { authorId: string };
 
 export type SharedAuthor = SharedClipDoc["author"];
+
+export type CreatorFollowCounts = Record<string, number>;
 
 export function publishSharedClip(entry: SharedClipDoc): Promise<void> {
   return setDoc(doc(getFirebaseFirestore(), "clips", entry.clip.id), entry);
@@ -90,6 +99,26 @@ export function subscribeClipComments(
   );
 }
 
+export function subscribeAllClipComments(
+  onData: (comments: SharedComment[]) => void,
+  onError?: (error: Error) => void,
+): () => void {
+  return onSnapshot(
+    collectionGroup(getFirebaseFirestore(), "comments"),
+    (snap) =>
+      onData(
+        snap.docs
+          .filter((entry) => {
+            const pathParts = entry.ref.path.split("/");
+            return pathParts[0] === "clips" && pathParts[2] === "comments";
+          })
+          .map((entry) => ({ id: entry.id, ...entry.data() }) as SharedComment)
+          .sort((a, b) => b.createdAt - a.createdAt),
+      ),
+    (error) => onError?.(error),
+  );
+}
+
 export function publishClipComment(
   clipId: string,
   authorId: string,
@@ -115,20 +144,28 @@ export function subscribeClipVotes(
     collection(getFirebaseFirestore(), "clips", clipId, "votes"),
     (snap) => {
       const summary: ClipVoteSummary = {
+        likes: 0,
         adYes: 0,
         adNo: 0,
         usedYes: 0,
         usedNo: 0,
+        wouldYes: 0,
+        wouldNo: 0,
       };
       for (const voteDoc of snap.docs) {
         const vote = voteDoc.data();
+        if (vote.liked === true) summary.likes += 1;
         if (vote.adLike === "yes") summary.adYes += 1;
         if (vote.adLike === "no") summary.adNo += 1;
         if (vote.used === "yes") summary.usedYes += 1;
         if (vote.used === "no") summary.usedNo += 1;
+        if (vote.would === "yes") summary.wouldYes += 1;
+        if (vote.would === "no") summary.wouldNo += 1;
         if (voteDoc.id === userId) {
+          summary.myLiked = vote.liked === true;
           if (vote.adLike === "yes" || vote.adLike === "no") summary.myAdLike = vote.adLike;
           if (vote.used === "yes" || vote.used === "no") summary.myUsed = vote.used;
+          if (vote.would === "yes" || vote.would === "no") summary.myWould = vote.would;
         }
       }
       onData(summary);
@@ -137,10 +174,88 @@ export function subscribeClipVotes(
   );
 }
 
+export function subscribeAllClipVotes(
+  userId: string,
+  onData: (summaries: Record<string, ClipVoteSummary>) => void,
+  onError?: (error: Error) => void,
+): () => void {
+  return onSnapshot(
+    collectionGroup(getFirebaseFirestore(), "votes"),
+    (snap) => {
+      const summaries: Record<string, ClipVoteSummary> = {};
+      for (const voteDoc of snap.docs) {
+        const pathParts = voteDoc.ref.path.split("/");
+        if (pathParts[0] !== "clips" || pathParts[2] !== "votes") continue;
+        const clipId = voteDoc.ref.parent.parent?.id;
+        if (!clipId) continue;
+        const summary = (summaries[clipId] ??= {
+          likes: 0,
+          adYes: 0,
+          adNo: 0,
+          usedYes: 0,
+          usedNo: 0,
+          wouldYes: 0,
+          wouldNo: 0,
+        });
+        const vote = voteDoc.data();
+        if (vote.liked === true) summary.likes += 1;
+        if (vote.adLike === "yes") summary.adYes += 1;
+        if (vote.adLike === "no") summary.adNo += 1;
+        if (vote.used === "yes") summary.usedYes += 1;
+        if (vote.used === "no") summary.usedNo += 1;
+        if (vote.would === "yes") summary.wouldYes += 1;
+        if (vote.would === "no") summary.wouldNo += 1;
+        if (voteDoc.id === userId) {
+          summary.myLiked = vote.liked === true;
+          if (vote.adLike === "yes" || vote.adLike === "no") summary.myAdLike = vote.adLike;
+          if (vote.used === "yes" || vote.used === "no") summary.myUsed = vote.used;
+          if (vote.would === "yes" || vote.would === "no") summary.myWould = vote.would;
+        }
+      }
+      onData(summaries);
+    },
+    (error) => onError?.(error),
+  );
+}
+
+export function subscribeAllCreatorFollows(
+  onData: (counts: CreatorFollowCounts) => void,
+  onError?: (error: Error) => void,
+): () => void {
+  return onSnapshot(
+    collectionGroup(getFirebaseFirestore(), "followers"),
+    (snap) => {
+      const counts: CreatorFollowCounts = {};
+      for (const follower of snap.docs) {
+        const creatorId = follower.ref.parent.parent?.id;
+        if (creatorId) counts[creatorId] = (counts[creatorId] ?? 0) + 1;
+      }
+      onData(counts);
+    },
+    (error) => onError?.(error),
+  );
+}
+
+export function setCreatorFollow(
+  creatorId: string,
+  userId: string,
+  following: boolean,
+): Promise<void> {
+  const followerRef = doc(getFirebaseFirestore(), "creator-follows", creatorId, "followers", userId);
+  return following
+    ? setDoc(followerRef, { creatorId, userId, createdAt: serverTimestamp() })
+    : deleteDoc(followerRef);
+}
+
 export function saveClipVote(
   clipId: string,
   userId: string,
-  vote: { adLike?: "yes" | "no"; used?: "yes" | "no" },
+  vote: {
+    liked?: boolean;
+    adLike?: "yes" | "no";
+    used?: "yes" | "no";
+    would?: "yes" | "no";
+  },
 ): Promise<void> {
   return setDoc(
     doc(getFirebaseFirestore(), "clips", clipId, "votes", userId),
