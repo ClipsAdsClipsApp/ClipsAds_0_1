@@ -5,16 +5,9 @@ import { Onboarding } from "@/components/onboarding";
 import { CreateClip, Explore, Library, Profile } from "@/components/screens";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { firebaseConfigured } from "@/lib/firebase/client";
-import {
-  subscribeAllClipComments,
-  subscribeAllClipVotes,
-  subscribeAllCreatorFollows,
-  subscribeSharedClips,
-  syncSharedAuthor,
-} from "@/lib/firebase/clips";
-import { subscribeUserAppState } from "@/lib/firebase/user-state";
+import { subscribeSharedClips, syncSharedAuthor } from "@/lib/firebase/clips";
 import { getMyProfile } from "@/lib/profile";
-import { useApp, type Persisted } from "@/lib/store";
+import { useApp } from "@/lib/store";
 import type { Role, UserProfile } from "@/lib/types";
 
 export function ClipsAds() {
@@ -51,43 +44,6 @@ export function ClipsAds() {
       },
     );
   }, []);
-
-  useEffect(() => {
-    if (!firebaseConfigured) return;
-    return subscribeAllClipComments(
-      (comments) => useApp.getState().setAllSharedComments(comments),
-      (error) => {
-        console.error("[firebase] Could not load live clip comments.", error);
-        useApp.getState().toastMsg("No se pudieron sincronizar los comentarios");
-      },
-    );
-  }, []);
-
-  useEffect(() => {
-    if (!firebaseConfigured) return;
-    return subscribeAllClipVotes(
-      authorId ?? "",
-      (summaries) => useApp.getState().setAllClipVotes(summaries),
-      (error) => console.error("[firebase] Could not load live clip votes.", error),
-    );
-  }, [authorId]);
-
-  useEffect(() => {
-    if (!firebaseConfigured) return;
-    return subscribeAllCreatorFollows(
-      (counts) => useApp.getState().setFollowCounts(counts),
-      (error) => console.error("[firebase] Could not load live creator follows.", error),
-    );
-  }, []);
-
-  useEffect(() => {
-    if (!firebaseConfigured || !authorId) return;
-    return subscribeUserAppState<Partial<Persisted>>(
-      authorId,
-      (value) => useApp.getState().applyRemoteUserState(authorId, value),
-      (error) => console.error("[firebase] Could not subscribe to account state.", error),
-    );
-  }, [authorId]);
 
   useEffect(() => {
     if (!firebaseConfigured || !authorId || !authorUsername || !authorDisplayName || !authorRole || !authorCity) return;

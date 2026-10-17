@@ -15,17 +15,12 @@ import {
   deleteSharedClip,
   publishClipComment,
   publishSharedClip,
-  setCreatorFollow,
   saveClipVote,
   type ClipVoteSummary,
   type SharedClipDoc,
 } from "@/lib/firebase/clips";
 import { remoteCreators } from "@/lib/creators-registry";
-import {
-  loadUserAppState,
-  saveUserAppState,
-  subscribeUserAppState,
-} from "@/lib/firebase/user-state";
+import { loadUserAppState, saveUserAppState } from "@/lib/firebase/user-state";
 
 const KEY = "ClipsAds-state-v2";
 
@@ -63,7 +58,7 @@ function mergeRemote(
   };
 }
 
-export interface Persisted {
+interface Persisted {
   user: UserProfile | null;
   clips: Clip[];
   products: Product[];
@@ -82,14 +77,9 @@ interface AppState extends Persisted {
   ready: boolean;
   remote: SharedClipDoc[];
   clipVotes: Record<string, ClipVoteSummary>;
-  followCounts: Record<string, number>;
   setRemote: (docs: SharedClipDoc[]) => void;
   setClipVotes: (clipId: string, summary: ClipVoteSummary) => void;
-  setAllClipVotes: (summaries: Record<string, ClipVoteSummary>) => void;
-  setFollowCounts: (counts: Record<string, number>) => void;
-  setAllSharedComments: (comments: Comment[]) => void;
   setSharedComments: (clipId: string, comments: Comment[]) => void;
-  applyRemoteUserState: (userId: string, value: Partial<Persisted> | null) => void;
   tab: Tab;
   feedMode: FeedMode;
   activeClipId: string;
@@ -132,7 +122,7 @@ function save(part: Persisted) {
     user: part.user,
     clips: part.clips.filter((c) => !isShared(c.id)),
     products: part.products.filter((p) => !isShared(p.id)),
-    comments: firebaseConfigured ? COMMENTS : part.comments,
+    comments: part.comments,
     liked: part.liked,
     saved: part.saved,
     following: part.following,
@@ -177,7 +167,6 @@ export const useApp = create<AppState>((set, get) => ({
   ready: false,
   remote: [],
   clipVotes: {},
-  followCounts: {},
   tab: "home",
   feedMode: "for-you",
   activeClipId: CLIPS[0]?.id ?? "c1",
@@ -250,47 +239,6 @@ export const useApp = create<AppState>((set, get) => ({
   setClipVotes: (clipId, summary) =>
     set((s) => ({ clipVotes: { ...s.clipVotes, [clipId]: summary } })),
 
-  setAllClipVotes: (clipVotes) => set({ clipVotes }),
-
-  setFollowCounts: (followCounts) => set({ followCounts }),
-
-  setAllSharedComments: (sharedComments) => {
-    const comments = [
-      ...sharedComments,
-      ...COMMENTS.filter((comment) => !sharedComments.some((entry) => entry.id === comment.id)),
-    ];
-    const counts = new Map<string, number>();
-    for (const comment of sharedComments) {
-      counts.set(comment.clipId, (counts.get(comment.clipId) ?? 0) + 1);
-    }
-    set((s) => ({
-      comments,
-      clips: s.clips.map((clip) =>
-        s.remote.some((entry) => entry.clip.id === clip.id)
-          ? { ...clip, comments: counts.get(clip.id) ?? 0 }
-          : clip,
-      ),
-    }));
-  },
-
-  applyRemoteUserState: (userId, value) => {
-    if (!value) return;
-    set((s) => {
-      if (s.user?.id !== userId) return s;
-      return {
-        user: value.user?.id === userId ? value.user : s.user,
-        liked: value.liked ?? s.liked,
-        saved: value.saved ?? s.saved,
-        following: value.following ?? s.following,
-        hidden: value.hidden ?? s.hidden,
-        tried: value.tried ?? s.tried,
-        would: value.would ?? s.would,
-        fulfills: value.fulfills ?? s.fulfills,
-        adLike: value.adLike ?? s.adLike,
-      };
-    });
-  },
-
   setSharedComments: (clipId, sharedComments) => {
     const seeded = COMMENTS.filter((comment) => comment.clipId === clipId);
     const comments = [
@@ -344,59 +292,23 @@ export const useApp = create<AppState>((set, get) => ({
   toggleSound: () => set((s) => ({ soundOn: !s.soundOn })),
 
   toggleLike: (clipId) => {
-    const user = get().user;
     const liked = new Set(get().liked);
-    const wasLiked = liked.has(clipId);
-    if (wasLiked) liked.delete(clipId);
-    else liked.add(clipId);
-    if (firebaseConfigured && user) {
-      const current = get().clipVotes[clipId] ?? {
-        likes: 0,
-        adYes: 0,
-        adNo: 0,
-        usedYes: 0,
-        usedNo: 0,
-        wouldYes: 0,
-        wouldNo: 0,
-      };
-      set({
-        liked: [...liked],
-        clipVotes: {
-          ...get().clipVotes,
-          [clipId]: {
-            ...current,
-            likes: Math.max(0, current.likes + (wasLiked ? -1 : 1)),
-            myLiked: !wasLiked,
-          },
-        },
-      });
-      get().persist();
-      void saveClipVote(clipId, user.id, { liked: !wasLiked }).catch((error: unknown) => {
-        console.error("[firebase] Could not save clip like.", error);
-        get().toastMsg("No se pudo actualizar el me gusta");
-      });
-      return;
-    }
     const clips = get().clips.map((c) => {
       if (c.id !== clipId) return c;
-      return { ...c, likes: c.likes + (wasLiked ? -1 : 1) };
+      const on = liked.has(clipId);
+      if (on) liked.delete(clipId);
+      else liked.add(clipId);
+      return { ...c, likes: c.likes + (on ? -1 : 1) };
     });
     set({ liked: [...liked], clips });
     get().persist();
   },
 
   toggleSave: (clipId) => {
-    const user = get().user;
     const saved = new Set(get().saved);
     const on = saved.has(clipId);
     if (on) saved.delete(clipId);
     else saved.add(clipId);
-    if (firebaseConfigured && user) {
-      set({ saved: [...saved] });
-      get().persist();
-      get().toastMsg(on ? "Quitado de guardados" : "Clip guardado");
-      return;
-    }
     const clips = get().clips.map((c) =>
       c.id === clipId ? { ...c, saves: c.saves + (on ? -1 : 1) } : c,
     );
@@ -406,23 +318,12 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   toggleFollow: (authorId) => {
-    const user = get().user;
     const following = new Set(get().following);
     const on = following.has(authorId);
     if (on) following.delete(authorId);
     else following.add(authorId);
-    const followCounts = { ...get().followCounts };
-    if (user && firebaseConfigured) {
-      followCounts[authorId] = Math.max(0, (followCounts[authorId] ?? 0) + (on ? -1 : 1));
-    }
-    set({ following: [...following], followCounts });
+    set({ following: [...following] });
     get().persist();
-    if (user && firebaseConfigured) {
-      void setCreatorFollow(authorId, user.id, !on).catch((error: unknown) => {
-        console.error("[firebase] Could not sync creator follow.", error);
-        get().toastMsg("No se pudo actualizar el seguimiento");
-      });
-    }
     get().toastMsg(on ? "Has dejado de seguir" : "Ahora sigues esta cuenta");
   },
 
@@ -469,84 +370,20 @@ export const useApp = create<AppState>((set, get) => ({
 
   setUsed: (clipId, value) => {
     const user = get().user;
-    if (firebaseConfigured && user) {
-      const current = get().clipVotes[clipId] ?? {
-        likes: 0,
-        adYes: 0,
-        adNo: 0,
-        usedYes: 0,
-        usedNo: 0,
-        wouldYes: 0,
-        wouldNo: 0,
-      };
-      const prior = current.myUsed ??
-        (get().tried[clipId] === "casual" || get().tried[clipId] === "verified"
-          ? "yes"
-          : get().tried[clipId] === "no"
-            ? "no"
-            : undefined);
-      set({
-        tried: { ...get().tried, [clipId]: value === "yes" ? "casual" : "no" },
-        sheet: null,
-        clipVotes: {
-          ...get().clipVotes,
-          [clipId]: {
-            ...current,
-            usedYes: Math.max(0, current.usedYes - (prior === "yes" ? 1 : 0) + (value === "yes" ? 1 : 0)),
-            usedNo: Math.max(0, current.usedNo - (prior === "no" ? 1 : 0) + (value === "no" ? 1 : 0)),
-            myUsed: value,
-          },
-        },
-      });
-      get().persist();
-      void saveClipVote(clipId, user.id, { used: value }).catch((error: unknown) => {
-        console.error("[firebase] Could not save clip survey vote.", error);
-        get().toastMsg("No se pudo guardar tu respuesta");
-      });
-      return;
-    }
     set({
       tried: { ...get().tried, [clipId]: value === "yes" ? "casual" : "no" },
       sheet: null,
     });
     get().persist();
+    if (firebaseConfigured && user) {
+      void saveClipVote(clipId, user.id, { used: value }).catch((error: unknown) => {
+        console.error("[firebase] Could not save clip survey vote.", error);
+        get().toastMsg("No se pudo guardar tu respuesta");
+      });
+    }
   },
 
   voteWould: (clipId, value) => {
-    const user = get().user;
-    if (firebaseConfigured && user) {
-      const current = get().clipVotes[clipId] ?? {
-        likes: 0,
-        adYes: 0,
-        adNo: 0,
-        usedYes: 0,
-        usedNo: 0,
-        wouldYes: 0,
-        wouldNo: 0,
-      };
-      const previous = current.myWould ?? get().would[clipId];
-      if (previous === value) return;
-      set({
-        would: { ...get().would, [clipId]: value },
-        clipVotes: {
-          ...get().clipVotes,
-          [clipId]: {
-            ...current,
-            wouldYes: Math.max(0, current.wouldYes - (previous === "yes" ? 1 : 0) + (value === "yes" ? 1 : 0)),
-            wouldNo: Math.max(0, current.wouldNo - (previous === "no" ? 1 : 0) + (value === "no" ? 1 : 0)),
-            myWould: value,
-          },
-        },
-        sheet: null,
-      });
-      get().persist();
-      void saveClipVote(clipId, user.id, { would: value }).catch((error: unknown) => {
-        console.error("[firebase] Could not save purchase intent vote.", error);
-        get().toastMsg("No se pudo guardar tu respuesta");
-      });
-      get().toastMsg("Voto registrado");
-      return;
-    }
     const prev = get().would[clipId];
     const clips = get().clips.map((c) => {
       if (c.id !== clipId) return c;
@@ -566,29 +403,7 @@ export const useApp = create<AppState>((set, get) => ({
   voteAdLike: (clipId, value) => {
     const user = get().user;
     if (firebaseConfigured && user) {
-      const current = get().clipVotes[clipId] ?? {
-        likes: 0,
-        adYes: 0,
-        adNo: 0,
-        usedYes: 0,
-        usedNo: 0,
-        wouldYes: 0,
-        wouldNo: 0,
-      };
-      const previous = current.myAdLike ?? get().adLike[clipId];
-      if (previous === value) return;
-      set({
-        adLike: { ...get().adLike, [clipId]: value },
-        clipVotes: {
-          ...get().clipVotes,
-          [clipId]: {
-            ...current,
-            adYes: Math.max(0, current.adYes - (previous === "yes" ? 1 : 0) + (value === "yes" ? 1 : 0)),
-            adNo: Math.max(0, current.adNo - (previous === "no" ? 1 : 0) + (value === "no" ? 1 : 0)),
-            myAdLike: value,
-          },
-        },
-      });
+      set({ adLike: { ...get().adLike, [clipId]: value } });
       get().persist();
       void saveClipVote(clipId, user.id, { adLike: value }).catch((error: unknown) => {
         console.error("[firebase] Could not save ad survey vote.", error);

@@ -49,17 +49,6 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    match /creator-follows/{creatorId}/followers/{userId} {
-      allow read: if true;
-      allow create: if request.auth != null
-        && request.auth.uid == userId
-        && request.resource.data.creatorId == creatorId
-        && request.resource.data.userId == userId
-        && request.resource.data.keys().hasOnly(["creatorId", "userId", "createdAt"]);
-      allow update: if false;
-      allow delete: if request.auth != null && request.auth.uid == userId;
-    }
-
     match /product-insights/{productId} {
       allow read: if true;
       allow create: if request.auth != null
@@ -186,16 +175,11 @@ service cloud.firestore {
         allow read: if true;
         allow create, update: if request.auth != null
           && request.auth.uid == userId
-          && request.resource.data.keys().hasOnly(["adLike", "used", "would", "liked", "updatedAt"])
-          && request.resource.data.keys().hasAny(["adLike", "used", "would", "liked"])
+          && request.resource.data.keys().hasOnly(["adLike", "used", "updatedAt"])
           && (!request.resource.data.keys().hasAny(["adLike"])
             || request.resource.data.adLike in ["yes", "no"])
           && (!request.resource.data.keys().hasAny(["used"])
-            || request.resource.data.used in ["yes", "no"])
-          && (!request.resource.data.keys().hasAny(["would"])
-            || request.resource.data.would in ["yes", "no"])
-          && (!request.resource.data.keys().hasAny(["liked"])
-            || request.resource.data.liked is bool)
+            || request.resource.data.used in ["yes", "no"]);
         allow delete: if request.auth != null
           && (request.auth.uid == userId || ownsClip(clipId));
       }

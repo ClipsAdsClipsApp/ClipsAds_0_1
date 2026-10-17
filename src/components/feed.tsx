@@ -11,6 +11,8 @@ import {
   IconSound,
 } from "@/components/icons";
 import { clipStats, DISCLOSURE_HINT, DISCLOSURE_LABEL, productById, useAuthor, useProduct } from "@/lib/catalog";
+import { firebaseConfigured } from "@/lib/firebase/client";
+import { subscribeClipComments, subscribeClipVotes } from "@/lib/firebase/clips";
 import { useApp } from "@/lib/store";
 import { CommunityInsightsModal, PostPurchaseFeedback } from "@/components/product-feedback";
 import type { Clip, CtaKind, Disclosure, Product } from "@/lib/types";
@@ -84,7 +86,6 @@ export function Feed() {
   const activeClip = list.find((c) => c.id === activeClipId) ?? list[0];
   const headerAuthor = useAuthor(activeClip?.authorId ?? "ana");
   const following = useApp((s) => s.following);
-  const followCounts = useApp((s) => s.followCounts);
   const toggleFollow = useApp((s) => s.toggleFollow);
 
   return (
@@ -138,7 +139,7 @@ export function Feed() {
                   : "bg-gradient-to-br from-cyan to-mint text-bg",
               )}
             >
-              {following.includes(headerAuthor.id) ? "Siguiendo" : "Seguir"} · {formatCount(followCounts[headerAuthor.id] ?? headerAuthor.followers)}
+              {following.includes(headerAuthor.id) ? "Siguiendo" : "Seguir"}
             </button>
           </div>
         ) : null}
@@ -233,16 +234,16 @@ function ClipSlide({ clip, active }: { clip: Clip; active: boolean }) {
         </button>
       ) : null}
 
-      <ClipOverlay clip={clip} />
+      <ClipOverlay clip={clip} active={active} />
     </section>
   );
 }
 
-function ClipOverlay({ clip }: { clip: Clip }) {
+function ClipOverlay({ clip, active }: { clip: Clip; active: boolean }) {
+  const userId = useApp((s) => s.user?.id);
   const clipVotes = useApp((s) => s.clipVotes[clip.id]);
+  const setClipVotes = useApp((s) => s.setClipVotes);
   const product = useProduct(clip.productId);
-  const liked = useApp((s) => s.liked);
-  const toggleLike = useApp((s) => s.toggleLike);
   const saved = useApp((s) => s.saved);
   const toggleSave = useApp((s) => s.toggleSave);
   const openSheet = useApp((s) => s.openSheet);
@@ -253,13 +254,10 @@ function ClipOverlay({ clip }: { clip: Clip }) {
     ...clip,
     adYes: (clip.adYes ?? 0) + (clipVotes?.adYes ?? 0),
     adNo: (clip.adNo ?? 0) + (clipVotes?.adNo ?? 0),
-    wouldYes: clip.wouldYes + (clipVotes?.wouldYes ?? 0),
-    wouldNo: clip.wouldNo + (clipVotes?.wouldNo ?? 0),
   });
   const voteAdLike = useApp((s) => s.voteAdLike);
   const localAd = useApp((s) => s.adLike[clip.id]);
   const myAd = clipVotes ? clipVotes.myAdLike : localAd;
-  const isLiked = clipVotes?.myLiked ?? liked.includes(clip.id);
   const isSaved = saved.includes(clip.id);
   const myUsed = clipVotes
     ? clipVotes.myUsed
@@ -274,17 +272,21 @@ function ClipOverlay({ clip }: { clip: Clip }) {
   const usedYes = myUsed === "yes";
   const usedNo = myUsed === "no";
 
+  useEffect(() => {
+    if (!active || !userId || !firebaseConfigured) return;
+    return subscribeClipVotes(
+      clip.id,
+      userId,
+      (summary) => setClipVotes(clip.id, summary),
+      (error) => {
+        console.error("[firebase] Could not load clip votes.", error);
+      },
+    );
+  }, [active, clip.id, setClipVotes, userId]);
+
   return (
     <>
       <div className="absolute right-1.5 bottom-[230px] z-10 flex flex-col items-center gap-1.5">
-        <Action
-          name="Me gusta"
-          label={formatCount(clip.likes + (clipVotes?.likes ?? 0))}
-          active={isLiked}
-          onClick={() => toggleLike(clip.id)}
-        >
-          <BrandActionIcon kind="like" active={isLiked} label="Me gusta" />
-        </Action>
         <Action
           name="Comentarios"
           label={formatCount(clip.comments)}
@@ -294,7 +296,7 @@ function ClipOverlay({ clip }: { clip: Clip }) {
         </Action>
         <Action
           name="Guardar"
-          label={formatCount(clip.saves + Number(isSaved))}
+          label={formatCount(clip.saves)}
           active={isSaved}
           onClick={() => toggleSave(clip.id)}
         >
@@ -603,26 +605,37 @@ function TriedSheet({ clipId }: { clipId: string }) {
 
 function WouldSheet({ clipId }: { clipId: string }) {
   const voteWould = useApp((s) => s.voteWould);
-  const selected = useApp((s) => s.clipVotes[clipId]?.myWould ?? s.would[clipId]);
   return (
     <>
       <p className="mb-3 text-xs text-muted">Aún no lo has usado. ¿Lo comprarías?</p>
-      {selected ? <p className="mb-2 text-xs text-mint">Tu respuesta: {selected === "yes" ? "Sí" : "No"}</p> : null}
-      <OptionButton variant={selected === "yes" ? "mint" : "primary"} onClick={() => voteWould(clipId, "yes")}>
+      <OptionButton variant="primary" onClick={() => voteWould(clipId, "yes")}>
         Sí, lo compraría
       </OptionButton>
-      <OptionButton variant={selected === "no" ? "mint" : "default"} onClick={() => voteWould(clipId, "no")}>
-        No lo compraría
-      </OptionButton>
+      <OptionButton onClick={() => voteWould(clipId, "no")}>No lo compraría</OptionButton>
     </>
   );
 }
 
 function CommentsSheet({ clipId }: { clipId: string }) {
+  const sheet = useApp((s) => s.sheet);
   const allComments = useApp((s) => s.comments);
   const comments = allComments.filter((c) => c.clipId === clipId);
   const addComment = useApp((s) => s.addComment);
+  const setSharedComments = useApp((s) => s.setSharedComments);
+  const toastMsg = useApp((s) => s.toastMsg);
   const [text, setText] = useState("");
+
+  useEffect(() => {
+    if (sheet !== "comments" || !firebaseConfigured) return;
+    return subscribeClipComments(
+      clipId,
+      (sharedComments) => setSharedComments(clipId, sharedComments),
+      (error) => {
+        console.error("[firebase] Could not load clip comments.", error);
+        toastMsg("No se pudieron cargar los comentarios");
+      },
+    );
+  }, [clipId, setSharedComments, sheet, toastMsg]);
 
   return (
     <>
@@ -816,14 +829,7 @@ function ProductSheet({
 }) {
   const [insightsOpen, setInsightsOpen] = useState(false);
   const product = useProduct(clip.productId);
-  const clipVotes = useApp((state) => state.clipVotes[clip.id]);
-  const stats = clipStats({
-    ...clip,
-    adYes: (clip.adYes ?? 0) + (clipVotes?.adYes ?? 0),
-    adNo: (clip.adNo ?? 0) + (clipVotes?.adNo ?? 0),
-    wouldYes: clip.wouldYes + (clipVotes?.wouldYes ?? 0),
-    wouldNo: clip.wouldNo + (clipVotes?.wouldNo ?? 0),
-  });
+  const stats = clipStats(clip);
   return (
     <div className="space-y-3">
       <img src={product.imageUrl} alt="" className="h-36 w-full rounded-2xl object-cover" />
