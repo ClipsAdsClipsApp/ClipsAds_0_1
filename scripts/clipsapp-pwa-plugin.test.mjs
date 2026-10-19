@@ -240,12 +240,12 @@ test("does not emit x:game:image without a public host or banner", () => {
   assert.doesNotMatch(noBanner, /x:game:image/);
 });
 
-test("site title clipsapp is a real name, not a sentinel", () => {
+test("site title ClipsApp is a real name, not a sentinel", () => {
   const out = injectclipsappPwaHead("<html><head></head></html>", {
     host: "wild-race.clipsapp.me",
-    site: { title: "clipsapp" },
+    site: { title: "ClipsApp" },
   });
-  assert.match(out, /property="og:title" content="clipsapp"/);
+  assert.match(out, /property="og:title" content="ClipsApp"/);
 });
 
 test("published clipsapp.me slug is still a title fallback", () => {
@@ -469,14 +469,14 @@ test("strips install params from the app link", () => {
 });
 
 test("names the install page from host slug", () => {
-  assert.equal(appNameFromHost("localhost:8080"), "clipsapp");
-  assert.equal(appNameFromHost("172.17.154.217:8080"), "clipsapp");
+  assert.equal(appNameFromHost("localhost:8080"), "ClipsApp");
+  assert.equal(appNameFromHost("172.17.154.217:8080"), "ClipsApp");
   assert.equal(appNameFromHost("wild-race.clipsapp.me"), "Wild Race");
 });
 
 test("rejects hosts that are not plain slugs", () => {
-  assert.equal(appNameFromHost("<script>alert(1)</script>"), "clipsapp");
-  assert.equal(appNameFromHost('"><img src=x onerror=1>.clipsapp.me'), "clipsapp");
+  assert.equal(appNameFromHost("<script>alert(1)</script>"), "ClipsApp");
+  assert.equal(appNameFromHost('"><img src=x onerror=1>.clipsapp.me'), "ClipsApp");
 });
 
 test("renders install page markup", () => {

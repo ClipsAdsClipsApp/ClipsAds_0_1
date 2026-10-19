@@ -15,7 +15,7 @@ export function LogoMark({ size = 38 }: { size?: number }) {
   return (
     <img
       src="/logo.jpg"
-      alt="clipsapp"
+      alt="ClipsApp"
       width={size}
       height={size}
       className="rounded-[12px] border border-cyan/40 object-cover shadow-[0_4px_16px_rgb(0_229_255_/_0.28)]"
@@ -26,7 +26,7 @@ export function LogoMark({ size = 38 }: { size?: number }) {
 export function Wordmark({ className }: { className?: string }) {
   return (
     <span className={cn("font-display text-lg font-extrabold tracking-tight", className)}>
-      clips<span className="text-cyan">Ads</span>
+      Clips<span className="text-cyan">App</span>
     </span>
   );
 }

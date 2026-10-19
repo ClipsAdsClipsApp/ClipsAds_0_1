@@ -2,12 +2,12 @@ import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
   appId: "com.clipsapp.app",
-  appName: "clipsapp",
+  appName: "ClipsApp",
   webDir: "capacitor-assets",
   server: {
-    url: "https://clipsads-prueba-2.vercel.app",
+    url: "https://clipsapp.app",
     cleartext: false,
-    allowNavigation: ["clipsads-prueba-2.vercel.app"],
+    allowNavigation: ["clipsapp.app"],
   },
 };
 
