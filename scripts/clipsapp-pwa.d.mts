@@ -14,14 +14,14 @@ export declare function renderInstallPageHtml(
   context?: { host?: string | null; url?: string | null },
 ): string;
 export declare function renderWebManifest(hostHeader: string | null | undefined): string;
-export declare function grokPwaHeadTags(appName?: string): Array<[string, string]>;
-export declare const GROK_EXTENSIONS_SCRIPT_SRC: string;
-export declare function readGrokProjectId(): string;
-export declare function readGrokExtensionsEnabled(): boolean;
+export declare function clipsappPwaHeadTags(appName?: string): Array<[string, string]>;
+export declare const clipsapp_EXTENSIONS_SCRIPT_SRC: string;
+export declare function readclipsappProjectId(): string;
+export declare function readclipsappExtensionsEnabled(): boolean;
 export declare function readXCreator(): string;
 export declare function readXCreatorId(): string;
-export declare function grokXCreatorHeadTags(creator?: string, creatorId?: string): string[];
-export declare function grokExtensionsHeadTags(projectId?: string): string[];
+export declare function clipsappXCreatorHeadTags(creator?: string, creatorId?: string): string[];
+export declare function clipsappExtensionsHeadTags(projectId?: string): string[];
 
 export type OgSite = {
   title?: string;
@@ -33,7 +33,7 @@ export type OgSite = {
   color?: string;
 };
 
-export type GrokHeadContext = {
+export type clipsappHeadContext = {
   appName?: string;
   projectId?: string;
   creator?: string;
@@ -57,7 +57,7 @@ export declare function resolveOgTitle(
   documentTitle?: string,
 ): string;
 export declare function siteHasCustomCard(site?: OgSite): boolean;
-export declare function grokOgHeadTags(ctx?: {
+export declare function clipsappOgHeadTags(ctx?: {
   host?: string;
   appName?: string;
   site?: OgSite;
@@ -65,7 +65,7 @@ export declare function grokOgHeadTags(ctx?: {
   cwd?: string;
 }): string[];
 export declare function stripShareMetaTags(html: string): string;
-export declare function normalizeHeadContext(ctx?: GrokHeadContext): {
+export declare function normalizeHeadContext(ctx?: clipsappHeadContext): {
   appName: string;
   projectId: string;
   creator: string;
@@ -74,8 +74,8 @@ export declare function normalizeHeadContext(ctx?: GrokHeadContext): {
   cwd: string;
   site: OgSite;
 };
-export declare function injectGrokPwaHead(html: string, ctx?: GrokHeadContext): string;
-export declare function createHeadInjector(ctx?: GrokHeadContext): {
+export declare function injectclipsappPwaHead(html: string, ctx?: clipsappHeadContext): string;
+export declare function createHeadInjector(ctx?: clipsappHeadContext): {
   push(chunk: Uint8Array | string): Uint8Array[];
   flush(): Uint8Array[];
 };

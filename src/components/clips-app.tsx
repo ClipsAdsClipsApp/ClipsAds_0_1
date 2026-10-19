@@ -10,7 +10,7 @@ import { getMyProfile } from "@/lib/profile";
 import { useApp } from "@/lib/store";
 import type { Role, UserProfile } from "@/lib/types";
 
-export function ClipsAds() {
+export function ClipsApp() {
   const hydrate = useApp((s) => s.hydrate);
   const user = useApp((s) => s.user);
   const authorId = useApp((s) => s.user?.id);

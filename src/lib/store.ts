@@ -22,7 +22,7 @@ import {
 import { remoteCreators } from "@/lib/creators-registry";
 import { loadUserAppState, saveUserAppState } from "@/lib/firebase/user-state";
 
-const KEY = "ClipsAds-state-v2";
+const KEY = "clipsapp-state-v2";
 
 const isShared = (id: string) => id.startsWith("mine-");
 
@@ -516,8 +516,8 @@ export const useApp = create<AppState>((set, get) => ({
     try {
       if (navigator.share) {
         await navigator.share({
-          title: "ClipsAds",
-          text: "Mira este anuncio en ClipsAds",
+          title: "clipsapp",
+          text: "Mira este anuncio en clipsapp",
           url: location.href,
         });
       } else {

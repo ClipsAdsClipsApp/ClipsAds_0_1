@@ -534,7 +534,7 @@ function ShareSheet() {
   const toastMsg = useApp((s) => s.toastMsg);
   const closeSheet = useApp((s) => s.closeSheet);
   const url = typeof window === "undefined" ? "" : window.location.href;
-  const message = `Mira este anuncio en ClipsAds: ${url}`;
+  const message = `Mira este anuncio en clipsapp: ${url}`;
   const options = [
     {
       label: "WhatsApp",
@@ -543,12 +543,12 @@ function ShareSheet() {
     },
     {
       label: "Telegram",
-      href: `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent("Mira este anuncio en ClipsAds")}`,
+      href: `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent("Mira este anuncio en clipsapp")}`,
       icon: Send,
     },
     {
       label: "Correo",
-      href: `mailto:?subject=${encodeURIComponent("ClipsAds")}&body=${encodeURIComponent(message)}`,
+      href: `mailto:?subject=${encodeURIComponent("clipsapp")}&body=${encodeURIComponent(message)}`,
       icon: Mail,
     },
   ];

@@ -86,7 +86,7 @@ export function Onboarding({ session }: { session?: AppUser | null }) {
         data: {
           username: name,
           displayName: name,
-          bio: "Nuevo en ClipsAds",
+          bio: "Nuevo en clipsapp",
           country,
           province,
           city,
@@ -274,7 +274,7 @@ export function Onboarding({ session }: { session?: AppUser | null }) {
               onClick={() => void finish()}
               className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-[linear-gradient(90deg,#2ee6d6,#7cffb2)] py-3 text-sm font-extrabold text-bg"
             >
-              <IconCheck size={16} /> {busy ? "Guardando…" : "Empezar en ClipsAds"}
+              <IconCheck size={16} /> {busy ? "Guardando…" : "Empezar en clipsapp"}
             </button>
           </div>
         )}

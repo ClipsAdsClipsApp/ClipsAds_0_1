@@ -1,5 +1,5 @@
-declare module "virtual:grok-og-identity" {
-  export const grokOgIdentity: {
+declare module "virtual:clipsapp-og-identity" {
+  export const clipsappOgIdentity: {
     site: {
       title?: string;
       description?: string;

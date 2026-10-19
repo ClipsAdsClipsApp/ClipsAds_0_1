@@ -1,7 +1,8 @@
 node_modules
 .vercel
-.grok
-.ClipsAds
+.grok/
+.clipsapp
+.clipsapp
 .tanstack
 dist
 .vite

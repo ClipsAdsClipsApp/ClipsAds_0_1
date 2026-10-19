@@ -1,11 +1,11 @@
-package com.ClipsAds.demo
+package com.clipsapp.demo
 
 /**
- * ClipsAds — demo Jetpack Compose (Kotlin)
+ * clipsapp — demo Jetpack Compose (Kotlin)
  *
  * Cómo usarlo en Android Studio:
  * 1. File → New → New Project → Empty Activity (Compose)
- * 2. Minimum SDK 26, Kotlin, package com.ClipsAds.demo
+ * 2. Minimum SDK 26, Kotlin, package com.clipsapp.demo
  * 3. Sustituye MainActivity.kt por este archivo
  * 4. En gradle (module app) asegúrate de tener:
  *      implementation("androidx.compose.material3:material3")
@@ -87,7 +87,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/* ─── Paleta ClipsAds ─────────────────────────────────────────────── */
+/* ─── Paleta clipsapp ─────────────────────────────────────────────── */
 
 private val Bg = Color(0xFF07070A)
 private val Surface = Color(0xFF14141C)
@@ -193,12 +193,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        setContent { ClipsAds() }
+        setContent { clipsapp() }
     }
 }
 
 @Composable
-fun ClipsAds() {
+fun clipsapp() {
     var loggedIn by remember { mutableStateOf(false) }
     if (!loggedIn) {
         Onboarding(onEnter = { loggedIn = true })
@@ -255,7 +255,7 @@ private fun Onboarding(onEnter: () -> Unit) {
             singleLine = true,
         )
         Spacer(Modifier.height(16.dp))
-        GradientButton("Entrar a ClipsAds", Modifier.fillMaxWidth(), onEnter)
+        GradientButton("Entrar a clipsapp", Modifier.fillMaxWidth(), onEnter)
         Spacer(Modifier.height(12.dp))
         OutlinedButton(
             onClick = onEnter,
@@ -636,7 +636,7 @@ private fun SheetBody(kind: String, clip: Clip, onClose: () -> Unit) {
                 "cta" -> clip.product.ctaLabel
                 "product" -> "Ficha social"
                 "more" -> "Opciones del clip"
-                else -> "ClipsAds"
+                else -> "clipsapp"
             },
             color = Fg,
             fontWeight = FontWeight.SemiBold,

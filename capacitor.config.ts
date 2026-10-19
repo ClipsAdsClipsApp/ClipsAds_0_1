@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
-  appId: "com.clipsads.app",
-  appName: "ClipsAds",
+  appId: "com.clipsapp.app",
+  appName: "clipsapp",
   webDir: "capacitor-assets",
   server: {
     url: "https://clipsads-prueba-2.vercel.app",

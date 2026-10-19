@@ -314,7 +314,7 @@ const ACTION_ICONS = {
 
 export type ActionIconKind = keyof typeof ACTION_ICONS;
 
-/** 3D glossy tile matching the ClipsAds logo. */
+/** 3D glossy tile matching the clipsapp logo. */
 export function BrandActionIcon({
   kind,
   active,

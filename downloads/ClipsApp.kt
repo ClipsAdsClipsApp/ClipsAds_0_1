@@ -1,13 +1,13 @@
-package com.ClipsAds.clips
+package com.clipsapp.clips
 
 /**
- * ClipsAds — demo Jetpack Compose (Kotlin)
+ * clipsapp — demo Jetpack Compose (Kotlin)
  *
  * ESTE ARCHIVO ES KOTLIN, NO HTML.
  * Ábrelo en Android Studio, no en el navegador.
  *
  * Cómo usarlo:
- * 1. En Android Studio abre: app → kotlin+java → com.ClipsAds.clips → MainActivity.kt
+ * 1. En Android Studio abre: app → kotlin+java → com.clipsapp.clips → MainActivity.kt
  * 2. Ctrl+A, Supr, pega TODO este archivo (Ctrl+V), Ctrl+S
  * 3. Si la primera línea no coincide con tu carpeta, cámbiala al package de tu proyecto
  * 4. Run (botón verde)
@@ -96,7 +96,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        setContent { ClipsAds() }
+        setContent { clipsapp() }
     }
 }
 
@@ -203,7 +203,7 @@ private fun formatCount(n: Int): String = when {
 }
 
 @Composable
-fun ClipsAds() {
+fun clipsapp() {
     var loggedIn by remember { mutableStateOf(false) }
     if (!loggedIn) {
         Onboarding(onEnter = { loggedIn = true })
@@ -258,7 +258,7 @@ private fun Onboarding(onEnter: () -> Unit) {
             singleLine = true,
         )
         Spacer(Modifier.height(16.dp))
-        GradientButton("Entrar a ClipsAds", Modifier.fillMaxWidth(), onEnter)
+        GradientButton("Entrar a clipsapp", Modifier.fillMaxWidth(), onEnter)
         Spacer(Modifier.height(12.dp))
         OutlinedButton(
             onClick = onEnter,
@@ -631,7 +631,7 @@ private fun SheetBody(kind: String, clip: Clip, onClose: () -> Unit) {
                 "cta" -> clip.product.ctaLabel
                 "product" -> "Ficha social"
                 "more" -> "Opciones del clip"
-                else -> "ClipsAds"
+                else -> "clipsapp"
             },
             color = Fg,
             fontWeight = FontWeight.SemiBold,

@@ -6,8 +6,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-export const DEFAULT_APP_NAME = "ClipsAds";
-export const OG_SERVICE_URL_DEFAULT = "https://og.grok.me";
+export const DEFAULT_APP_NAME = "clipsapp";
+export const OG_SERVICE_URL_DEFAULT = "https://og.clipsapp.me";
 export const OG_SITE_REL_PATH = "src/lib/og/site.json";
 
 const SHARE_META_KEYS = new Set([
@@ -47,7 +47,7 @@ function unescapeHtml(value) {
     .replaceAll("&amp;", "&");
 }
 
-/** 6-digit hex for the og.grok.me placeholder, or "" if site.color is missing/invalid. */
+/** 6-digit hex for the og.clipsapp.me placeholder, or "" if site.color is missing/invalid. */
 function placeholderCardColor(site = {}) {
   const raw = String(site.color ?? "").trim();
   const hex = raw.startsWith("#") ? raw.slice(1) : raw;
@@ -55,7 +55,7 @@ function placeholderCardColor(site = {}) {
 }
 
 /**
- * "wild-race.grok.me" → "Wild Race". Only published app hosts encode the
+ * "wild-race.clipsapp.me" → "Wild Race". Only published app hosts encode the
  * display name in the first label. Preview / guest hosts are image origins
  * only — slugifying them produced internal names like "Hds Abc 3000 Xy".
  */
@@ -65,7 +65,7 @@ export function appNameFromHost(hostHeader) {
     .trim()
     .split(":")[0]
     .toLowerCase();
-  if (!host.endsWith(".grok.me")) {
+  if (!host.endsWith(".clipsapp.me")) {
     return DEFAULT_APP_NAME;
   }
   const slug = host.split(".")[0] ?? "";
@@ -105,7 +105,7 @@ export function publicAppHost(hostHeader) {
 }
 
 /**
- * Published apps always use `VITE_PUBLIC_HOSTNAME` (the grok.me host the
+ * Published apps always use `VITE_PUBLIC_HOSTNAME` (the clipsapp.me host the
  * deployer injects). Live preview has no such env, so fall back to the
  * request host / X-Forwarded-Host. Never prefer request Host on a published
  * app — Envoy rewrites it to `*.vercel.app`.
@@ -128,7 +128,7 @@ export function isInstallQuery(url) {
 export function isDocumentPath(pathname) {
   const path = String(pathname ?? "");
   return (
-    !path.startsWith("/__clipsads/") &&
+    !path.startsWith("/__clipsapp/") &&
     !path.startsWith("/api/") &&
     !path.startsWith("/@") &&
     !path.startsWith("/node_modules") &&
@@ -171,17 +171,17 @@ export function renderWebManifest(hostHeader) {
       theme_color: "#000000",
       icons: [
         {
-          src: "/__clipsads/icon-180.png",
+          src: "/__clipsapp/icon-180.png",
           sizes: "180x180",
           type: "image/png",
         },
         {
-          src: "/__clipsads/icon-192.png",
+          src: "/__clipsapp/icon-192.png",
           sizes: "192x192",
           type: "image/png",
         },
         {
-          src: "/__clipsads/icon-512.png",
+          src: "/__clipsapp/icon-512.png",
           sizes: "512x512",
           type: "image/png",
         },
@@ -192,12 +192,12 @@ export function renderWebManifest(hostHeader) {
   );
 }
 
-export function grokPwaHeadTags(appName = DEFAULT_APP_NAME) {
+export function clipsappPwaHeadTags(appName = DEFAULT_APP_NAME) {
   return [
     // Standalone display comes from the manifest ("display": "standalone");
     // the legacy *-web-app-capable metas it replaces are deliberately absent.
-    ["manifest", '<link rel="manifest" href="/__clipsads/manifest.webmanifest">'],
-    ["apple-touch-icon", '<link rel="apple-touch-icon" href="/__clipsads/icon-180.png">'],
+    ["manifest", '<link rel="manifest" href="/__clipsapp/manifest.webmanifest">'],
+    ["apple-touch-icon", '<link rel="apple-touch-icon" href="/__clipsapp/icon-180.png">'],
     [
       "apple-mobile-web-app-title",
       `<meta name="apple-mobile-web-app-title" content="${escapeHtml(appName)}">`,
@@ -210,15 +210,15 @@ export function grokPwaHeadTags(appName = DEFAULT_APP_NAME) {
   ];
 }
 
-export const GROK_EXTENSIONS_SCRIPT_SRC = "https://grok.com/grok-app-builder/extensions.js";
+export const clipsapp_EXTENSIONS_SCRIPT_SRC = "https://clipsapp.com/clipsapp-app-builder/extensions.js";
 
-export function readGrokProjectId() {
+export function readclipsappProjectId() {
   const fromProcess = typeof process !== "undefined" ? process.env?.VITE_PROJECT_ID : "";
   return String(fromProcess ?? "").trim();
 }
 
-export function readGrokExtensionsEnabled() {
-  const fromProcess = typeof process !== "undefined" ? process.env?.VITE_GROK_EXTENSIONS : "";
+export function readclipsappExtensionsEnabled() {
+  const fromProcess = typeof process !== "undefined" ? process.env?.VITE_clipsapp_EXTENSIONS : "";
   return String(fromProcess ?? "").trim() !== "0";
 }
 
@@ -232,7 +232,7 @@ export function readXCreatorId() {
   return String(fromProcess ?? "").trim();
 }
 
-export function grokXCreatorHeadTags(creator = readXCreator(), creatorId = readXCreatorId()) {
+export function clipsappXCreatorHeadTags(creator = readXCreator(), creatorId = readXCreatorId()) {
   const name = String(creator ?? "").trim();
   const id = String(creatorId ?? "").trim();
   if (!name || !id) return [];
@@ -242,16 +242,16 @@ export function grokXCreatorHeadTags(creator = readXCreator(), creatorId = readX
   ];
 }
 
-/** Platform "Created with Grok" banner — injected into every HTML document. */
-export function grokExtensionsHeadTags(projectId = readGrokProjectId()) {
+/** Platform "Created with clipsapp" banner — injected into every HTML document. */
+export function clipsappExtensionsHeadTags(projectId = readclipsappProjectId()) {
   const id = escapeHtml(projectId);
   const tags = [];
   if (projectId) {
-    tags.push(`<meta name="grok-project-id" content="${id}">`);
+    tags.push(`<meta name="clipsapp-project-id" content="${id}">`);
   }
-  if (!readGrokExtensionsEnabled()) return tags;
+  if (!readclipsappExtensionsEnabled()) return tags;
   tags.push(
-    `<script src="${GROK_EXTENSIONS_SCRIPT_SRC}"${
+    `<script src="${clipsapp_EXTENSIONS_SCRIPT_SRC}"${
       projectId ? ` data-project-id="${id}"` : ""
     } defer></script>`,
   );
@@ -319,10 +319,10 @@ export function resolveOgTitle(
   host = "",
   documentTitle = "",
 ) {
-  const fromSite = String(site.title ?? "").trim();
-  if (fromSite) return fromSite;
   const fromDoc = String(documentTitle ?? "").trim();
   if (fromDoc) return fromDoc;
+  const fromSite = String(site.title ?? "").trim();
+  if (fromSite) return fromSite;
   const fromHost = appNameFromHost(host);
   if (fromHost && fromHost !== DEFAULT_APP_NAME) return fromHost;
   const fromArg = String(appName ?? "").trim();
@@ -336,7 +336,7 @@ export function siteHasCustomCard(site = {}) {
 /**
  * Preview: public/og.jpg|png on disk.
  * Vercel: the bake (`card=custom` / `image`) because the function cannot stat public/.
- * Otherwise empty — caller emits the og.grok.me placeholder.
+ * Otherwise empty — caller emits the og.clipsapp.me placeholder.
  */
 export function resolveOgCardAsset(site = {}, cwd = process.cwd()) {
   return ogCardPublicPath(cwd) || (detectCustomOgCard(cwd, site) ? String(site.image ?? "").trim() || "/og.jpg" : "");
@@ -349,7 +349,7 @@ function applyCustomCardFromFs(site, cwd) {
   return { ...site, card: "custom", image: disk };
 }
 
-export function grokOgHeadTags({
+export function clipsappOgHeadTags({
   host = "",
   appName = DEFAULT_APP_NAME,
   site = {},
@@ -391,9 +391,9 @@ export function grokOgHeadTags({
   return tags;
 }
 
-function stripGrokExtensionsScript(html) {
+function stripclipsappExtensionsScript(html) {
   return String(html).replace(
-    /<script\b[^>]*\bsrc\s*=\s*["'][^"']*\/grok-app-builder\/extensions\.js[^"']*["'][^>]*>\s*<\/script>/gi,
+    /<script\b[^>]*\bsrc\s*=\s*["'][^"']*\/clipsapp-app-builder\/extensions\.js[^"']*["'][^>]*>\s*<\/script>/gi,
     "",
   );
 }
@@ -427,7 +427,7 @@ export function normalizeHeadContext(ctx = {}) {
   const cwd = ctx.cwd ?? process.cwd();
   // Middleware passes a baked `site`. Still consult the workspace so a
   // public/og.jpg generated after that snapshot (or missed by a wrong cwd)
-  // wins over the og.grok.me placeholder. Vercel has no public/ to read, so
+  // wins over the og.clipsapp.me placeholder. Vercel has no public/ to read, so
   // a correct bake is unchanged.
   const site = applyCustomCardFromFs(
     ctx.site !== undefined ? ctx.site : snapshotOgIdentity(cwd).site,
@@ -436,7 +436,7 @@ export function normalizeHeadContext(ctx = {}) {
   const appName = resolveOgTitle(site, ctx.appName ?? DEFAULT_APP_NAME, ctx.host ?? "");
   return {
     appName,
-    projectId: ctx.projectId ?? readGrokProjectId(),
+    projectId: ctx.projectId ?? readclipsappProjectId(),
     creator: ctx.creator ?? readXCreator(),
     creatorId: ctx.creatorId ?? readXCreatorId(),
     host: ctx.host ?? "",
@@ -445,7 +445,7 @@ export function normalizeHeadContext(ctx = {}) {
   };
 }
 
-export function injectGrokPwaHead(html, ctx = {}) {
+export function injectclipsappPwaHead(html, ctx = {}) {
   if (typeof html !== "string") return html;
   const { site, projectId, creator, creatorId, host, cwd } = normalizeHeadContext(ctx);
   const documentTitle = titleFromDocument(html);
@@ -456,34 +456,34 @@ export function injectGrokPwaHead(html, ctx = {}) {
     documentTitle,
   );
   let next = stripShareMetaTags(html);
-  if (!readGrokExtensionsEnabled()) next = stripGrokExtensionsScript(next);
+  if (!readclipsappExtensionsEnabled()) next = stripclipsappExtensionsScript(next);
 
-  const missing = grokPwaHeadTags(appName)
+  const missing = clipsappPwaHeadTags(appName)
     .filter(([key]) => {
-      if (key === "manifest") return !next.includes('href="/__clipsads/manifest.webmanifest"');
-      if (key === "apple-touch-icon") return !next.includes('href="/__clipsads/icon-180.png"');
+      if (key === "manifest") return !next.includes('href="/__clipsapp/manifest.webmanifest"');
+      if (key === "apple-touch-icon") return !next.includes('href="/__clipsapp/icon-180.png"');
       return !next.includes(`name="${key}"`);
     })
     .map(([, tag]) => tag);
 
   next = insertAfterHeadOpen(
     next,
-    grokOgHeadTags({ host, appName, site, documentTitle, cwd }).join(""),
+    clipsappOgHeadTags({ host, appName, site, documentTitle, cwd }).join(""),
   );
 
-  if (readGrokExtensionsEnabled() && !next.includes("/grok-app-builder/extensions.js")) {
-    missing.push(...grokExtensionsHeadTags(projectId));
-  } else if (projectId && !next.includes('name="grok-project-id"')) {
-    missing.push(`<meta name="grok-project-id" content="${escapeHtml(projectId)}">`);
+  if (readclipsappExtensionsEnabled() && !next.includes("/clipsapp-app-builder/extensions.js")) {
+    missing.push(...clipsappExtensionsHeadTags(projectId));
+  } else if (projectId && !next.includes('name="clipsapp-project-id"')) {
+    missing.push(`<meta name="clipsapp-project-id" content="${escapeHtml(projectId)}">`);
   }
   if (
     projectId &&
-    !next.includes('property="grok:app_id"') &&
-    !next.includes("property='grok:app_id'")
+    !next.includes('property="clipsapp:app_id"') &&
+    !next.includes("property='clipsapp:app_id'")
   ) {
-    missing.push(`<meta property="grok:app_id" content="${escapeHtml(projectId)}">`);
+    missing.push(`<meta property="clipsapp:app_id" content="${escapeHtml(projectId)}">`);
   }
-  const creatorTags = grokXCreatorHeadTags(creator, creatorId);
+  const creatorTags = clipsappXCreatorHeadTags(creator, creatorId);
   if (creatorTags.length > 0) {
     const hasCreator =
       next.includes('property="x:creator" content=') ||
@@ -514,7 +514,7 @@ export function createHeadInjector(ctx = {}) {
   let done = false;
 
   const apply = (html) =>
-    injectGrokPwaHead(html, {
+    injectclipsappPwaHead(html, {
       appName: normalized.appName,
       projectId: normalized.projectId,
       creator: normalized.creator,

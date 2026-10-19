@@ -15,7 +15,7 @@ export function LogoMark({ size = 38 }: { size?: number }) {
   return (
     <img
       src="/logo.jpg"
-      alt="ClipsAds"
+      alt="clipsapp"
       width={size}
       height={size}
       className="rounded-[12px] border border-cyan/40 object-cover shadow-[0_4px_16px_rgb(0_229_255_/_0.28)]"

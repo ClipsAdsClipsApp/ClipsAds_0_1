@@ -1,16 +1,16 @@
-package com.ClipsAds.myapplication
+package com.clipsapp.myapplication
 
 /**
- * ClipsAds — demo Jetpack Compose (Kotlin)
+ * clipsapp — demo Jetpack Compose (Kotlin)
  *
  * ESTE ARCHIVO ES KOTLIN, NO HTML.
  * Ábrelo en Android Studio, no en el navegador.
  *
  * Cómo usarlo:
- * 1. En Android Studio abre: app → src → main → java → com.ClipsAds.myapplication → MainActivity.kt
+ * 1. En Android Studio abre: app → src → main → java → com.clipsapp.myapplication → MainActivity.kt
  *    (NO abras AndroidManifest.xml)
  * 2. Ctrl+A, Supr, pega TODO este archivo (Ctrl+V), Ctrl+S
- * 3. La primera línea DEBE ser: package com.ClipsAds.myapplication
+ * 3. La primera línea DEBE ser: package com.clipsapp.myapplication
  * 4. Run (botón verde)
  * 5. Para vídeos: el móvil/emulador necesita internet.
  *    En AndroidManifest.xml, dentro de <manifest>, debe existir:
@@ -1278,7 +1278,7 @@ data class LocalUser(
 )
 
 private class AccountStore(ctx: android.content.Context) {
-    private val sp = ctx.getSharedPreferences("ClipsAds_users", 0)
+    private val sp = ctx.getSharedPreferences("clipsapp_users", 0)
     fun current(): LocalUser? = sp.getString("current", null)?.let(::get)
     fun get(email: String): LocalUser? {
         val raw = sp.getString("u:$email", null) ?: return null
@@ -1304,7 +1304,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        setContent { ClipsAds() }
+        setContent { clipsapp() }
     }
 }
 
@@ -1437,7 +1437,7 @@ private fun formatCount(n: Int): String = when {
 }
 
 @Composable
-fun ClipsAds() {
+fun clipsapp() {
     var loggedIn by remember { mutableStateOf(false) }
     if (!loggedIn) {
         Onboarding(onEnter = { loggedIn = true })
@@ -1492,7 +1492,7 @@ private fun Onboarding(onEnter: () -> Unit) {
             singleLine = true,
         )
         Spacer(Modifier.height(16.dp))
-        GradientButton("Entrar a ClipsAds", Modifier.fillMaxWidth(), onEnter)
+        GradientButton("Entrar a clipsapp", Modifier.fillMaxWidth(), onEnter)
         Spacer(Modifier.height(12.dp))
         OutlinedButton(
             onClick = onEnter,
@@ -2078,7 +2078,7 @@ private fun SheetBody(kind: String, clip: Clip, onClose: () -> Unit) {
                 "cta" -> clip.product.ctaLabel
                 "product" -> "Ficha social"
                 "more" -> "Opciones del clip"
-                else -> "ClipsAds"
+                else -> "clipsapp"
             },
             color = Fg,
             fontWeight = FontWeight.SemiBold,

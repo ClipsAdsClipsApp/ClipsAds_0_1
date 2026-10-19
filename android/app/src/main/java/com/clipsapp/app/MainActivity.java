@@ -1,4 +1,4 @@
-package com.clipsads.app;
+package com.clipsapp.app;
 
 import com.getcapacitor.BridgeActivity;
 
