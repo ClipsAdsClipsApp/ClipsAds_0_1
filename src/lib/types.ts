@@ -4,7 +4,8 @@ export type AgeRange = "18-24" | "25-34" | "35-44" | "45-54" | "55+";
 export type Currency = "EUR" | "USD";
 export type Tab = "home" | "explore" | "create" | "clips" | "profile";
 export type FeedMode = "for-you" | "discover";
-export type CtaKind = "buy" | "book" | "call" | "directions" | "quote";
+export type CtaKind = "buy" | "book" | "call" | "directions" | "quote" | "contact" | "offer";
+export type PurchaseMode = "internal" | "external";
 export type Disclosure =
   | "organic"
   | "verified_purchase"
@@ -58,6 +59,7 @@ export interface UserProfile {
   country?: string;
   province?: string;
   city: string;
+  stripeAccountId?: string;
   interests: CategoryId[];
   personalizeAds: boolean;
   approximateLocation: boolean;
@@ -73,6 +75,7 @@ export interface Creator {
   bio: string;
   followers: number;
   verified: boolean;
+  stripeAccountId?: string;
 }
 
 export interface Product {
@@ -87,6 +90,13 @@ export interface Product {
   distanceKm: number;
   imageUrl: string;
   purchaseUrl?: string;
+  purchaseMode?: PurchaseMode;
+  bookingUrl?: string;
+  contactUrl?: string;
+  offerCode?: string;
+  offerDetails?: string;
+  sizeOptions?: string[];
+  sellerStripeAccountId?: string;
   address?: string;
   phone?: string;
   cta: CtaKind;

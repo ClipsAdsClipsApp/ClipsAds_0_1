@@ -41,6 +41,7 @@ function mergeRemote(
       avatarUrl: d.author.avatarUrl,
       role: d.author.role,
       city: d.author.city,
+      stripeAccountId: d.author.stripeAccountId,
       bio: "",
       followers: 0,
       verified: false,
@@ -551,6 +552,7 @@ export const useApp = create<AppState>((set, get) => ({
           avatarUrl: avatar || "/avatars/user.jpg",
           role: user.role,
           city: user.city,
+          stripeAccountId: user.stripeAccountId,
         },
         createdAt: clip.createdAt,
       }).catch((error: unknown) => {

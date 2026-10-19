@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { BarChart3, Copy, Mail, MessageCircle, Send } from "lucide-react";
+import { BarChart3, Copy, LoaderCircle, Mail, MessageCircle, Minus, Plus, Send } from "lucide-react";
 import { BottomNav, LogoMark, OptionButton, Sheet, Wordmark } from "@/components/chrome";
 import {
   BrandActionIcon,
@@ -14,7 +14,8 @@ import { clipStats, DISCLOSURE_HINT, DISCLOSURE_LABEL, productById, useAuthor, u
 import { firebaseConfigured } from "@/lib/firebase/client";
 import { subscribeClipComments, subscribeClipVotes } from "@/lib/firebase/clips";
 import { useApp } from "@/lib/store";
-import { CommunityInsightsModal, PostPurchaseFeedback } from "@/components/product-feedback";
+import { CommunityInsightsModal } from "@/components/product-feedback";
+import { getFirebaseAuth } from "@/lib/firebase/client";
 import type { Clip, CtaKind, Disclosure, Product } from "@/lib/types";
 import { cn, formatCount, formatPrice } from "@/lib/utils";
 
@@ -481,7 +482,6 @@ function ClipSheets() {
   const clipId = useApp((s) => s.sheetClipId);
   const clips = useApp((s) => s.clips);
   const closeSheet = useApp((s) => s.closeSheet);
-  const [feedbackProduct, setFeedbackProduct] = useState<Product | null>(null);
   const clip = clips.find((c) => c.id === clipId) ?? clips[0];
   const product = useProduct(clip?.productId ?? "headphones");
   const author = useAuthor(clip?.authorId ?? "ana");
@@ -502,13 +502,7 @@ function ClipSheets() {
         <ShareSheet />
       </Sheet>
       <Sheet open={sheet === "cta"} title={product.ctaLabel} onClose={closeSheet}>
-        <CtaSheet
-          clip={clip}
-          onPurchase={() => {
-            closeSheet();
-            setFeedbackProduct(product);
-          }}
-        />
+        <CtaSheet clip={clip} />
       </Sheet>
       <Sheet open={sheet === "more"} title="Opciones del clip" onClose={closeSheet}>
         <MoreSheet clip={clip} />
@@ -519,13 +513,6 @@ function ClipSheets() {
       <Sheet open={sheet === "product"} title="Ficha social" onClose={closeSheet}>
         <ProductSheet clip={clip} disclosure={clip.disclosure} author={author.displayName} />
       </Sheet>
-      {feedbackProduct ? (
-        <PostPurchaseFeedback
-          productId={feedbackProduct.id}
-          productName={feedbackProduct.name}
-          onClose={() => setFeedbackProduct(null)}
-        />
-      ) : null}
     </>
   );
 }
@@ -674,45 +661,39 @@ function CommentsSheet({ clipId }: { clipId: string }) {
   );
 }
 
-function CtaSheet({ clip, onPurchase }: { clip: Clip; onPurchase: () => void }) {
+function CtaSheet({ clip }: { clip: Clip }) {
   const product = useProduct(clip.productId);
   const toastMsg = useApp((s) => s.toastMsg);
   const closeSheet = useApp((s) => s.closeSheet);
+  const author = useAuthor(clip.authorId);
   if (product.cta === "buy") {
+    const external = product.purchaseMode === "external" || (!product.purchaseMode && Boolean(product.purchaseUrl));
+    if (external) {
+      return product.purchaseUrl ? (
+        <ExternalLinkPanel url={product.purchaseUrl} label={`Tienda de ${product.brand}`} onClose={closeSheet} />
+      ) : (
+        <p className="py-6 text-center text-sm text-muted">El vendedor aún no añadió el enlace de compra.</p>
+      );
+    }
     return (
-      <>
-        <p className="mb-3 text-center text-xs text-muted">
-          Demo de compra. Código <b className="text-fg">CLIPS10</b> — 10% dto.
-        </p>
-        <OptionButton
-          variant="mint"
-          onClick={onPurchase}
-        >
-          Confirmar compra
-        </OptionButton>
-        <OptionButton variant="ghost" onClick={closeSheet}>
-          Seguir viendo
-        </OptionButton>
-      </>
+      <DirectPurchasePanel
+        clip={clip}
+        product={product}
+        sellerConnected={Boolean(author.stripeAccountId || product.sellerStripeAccountId)}
+      />
     );
   }
   if (product.cta === "book") {
+    if (product.bookingUrl) {
+      return <ExternalLinkPanel url={product.bookingUrl} label={`Reservas de ${product.brand}`} onClose={closeSheet} />;
+    }
     return (
       <>
-        <p className="mb-3 text-xs text-muted">
-          {product.address}. Reserva simulada para hoy.
+        <p className="py-6 text-center text-sm text-muted">
+          Este comercio todavía no habilitó reservas en línea.
         </p>
-        <OptionButton
-          variant="primary"
-          onClick={() => {
-            toastMsg("Reserva enviada (demo)");
-            closeSheet();
-          }}
-        >
-          Confirmar reserva
-        </OptionButton>
         <OptionButton variant="ghost" onClick={closeSheet}>
-          Cancelar
+          Cerrar
         </OptionButton>
       </>
     );
@@ -733,6 +714,18 @@ function CtaSheet({ clip, onPurchase }: { clip: Clip; onPurchase: () => void }) 
           Cancelar
         </OptionButton>
       </>
+    );
+  }
+  if (product.cta === "contact") {
+    return product.contactUrl ? (
+      <ExternalLinkPanel url={product.contactUrl} label={`Contacto de ${product.brand}`} onClose={closeSheet} />
+    ) : (
+      <p className="py-6 text-center text-sm text-muted">El vendedor aún no añadió un enlace de contacto.</p>
+    );
+  }
+  if (product.cta === "offer") {
+    return (
+      <OfferPanel product={product} onClose={closeSheet} />
     );
   }
   return (
@@ -756,6 +749,133 @@ function CtaSheet({ clip, onPurchase }: { clip: Clip; onPurchase: () => void }) 
         Cerrar
       </OptionButton>
     </>
+  );
+}
+
+function ExternalLinkPanel({ url, label, onClose }: { url: string; label: string; onClose: () => void }) {
+  return (
+    <div className="space-y-2">
+      <div className="overflow-hidden rounded-xl border border-line bg-bg-elevated">
+        <iframe
+          src={url}
+          title={label}
+          loading="lazy"
+          referrerPolicy="strict-origin-when-cross-origin"
+          sandbox="allow-forms allow-scripts allow-popups allow-popups-to-escape-sandbox"
+          className="h-[52dvh] min-h-64 w-full bg-white"
+        />
+      </div>
+      <a href={url} target="_blank" rel="noopener noreferrer" className="flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-bg-elevated px-3 py-2.5 text-xs font-semibold text-muted">
+        <IconInfo size={14} /> Si la tienda bloquea la vista integrada, abrir en el navegador
+      </a>
+      <OptionButton variant="ghost" onClick={onClose}>Volver a ClipsApp</OptionButton>
+    </div>
+  );
+}
+
+function DirectPurchasePanel({
+  clip,
+  product,
+  sellerConnected,
+}: {
+  clip: Clip;
+  product: Product;
+  sellerConnected: boolean;
+}) {
+  const [size, setSize] = useState("");
+  const [quantity, setQuantity] = useState(1);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function checkout() {
+    const firebaseUser = getFirebaseAuth().currentUser;
+    if (!firebaseUser) {
+      setError("Inicia sesión para realizar la compra.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${await firebaseUser.getIdToken()}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ clipId: clip.id, quantity, size }),
+      });
+      const result = (await response.json()) as { error?: string; url?: string };
+      if (!response.ok || !result.url) throw new Error(result.error || "No se pudo iniciar el pago.");
+      window.location.assign(result.url);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudo iniciar el pago seguro.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const availableSizes = product.sizeOptions ?? [];
+  const total = product.price * quantity;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-3 rounded-xl border border-line bg-bg-elevated p-3">
+        <img src={product.imageUrl} alt="" className="size-20 shrink-0 rounded-lg object-cover" />
+        <div className="min-w-0 self-center">
+          <p className="truncate text-sm font-bold">{product.name}</p>
+          <p className="text-xs text-muted">{product.brand}</p>
+          <p className="mt-1 text-sm font-extrabold text-mint">{formatPrice(product.price, product.currency)}</p>
+        </div>
+      </div>
+      {availableSizes.length ? (
+        <label className="block text-xs font-bold text-muted">
+          Talla u opción
+          <select value={size} onChange={(event) => setSize(event.target.value)} className="mt-1 w-full rounded-xl border border-line bg-bg-elevated px-3 py-3 text-sm text-fg">
+            <option value="">Selecciona una opción</option>
+            {availableSizes.map((option) => <option key={option} value={option}>{option}</option>)}
+          </select>
+        </label>
+      ) : null}
+      <div className="flex items-center justify-between rounded-xl border border-line bg-bg-elevated px-3 py-2">
+        <span className="text-xs font-bold">Cantidad</span>
+        <div className="flex items-center gap-3">
+          <button type="button" disabled={quantity <= 1} onClick={() => setQuantity((value) => Math.max(1, value - 1))} aria-label="Reducir cantidad" className="grid size-8 place-items-center rounded-lg border border-line disabled:opacity-40"><Minus size={14} /></button>
+          <span className="min-w-5 text-center text-sm font-bold tabular-nums">{quantity}</span>
+          <button type="button" disabled={quantity >= 10} onClick={() => setQuantity((value) => Math.min(10, value + 1))} aria-label="Aumentar cantidad" className="grid size-8 place-items-center rounded-lg border border-line disabled:opacity-40"><Plus size={14} /></button>
+        </div>
+      </div>
+      {!sellerConnected ? <p className="text-xs text-muted">El vendedor debe conectar Stripe Connect para aceptar pagos.</p> : null}
+      {error ? <p role="alert" className="text-xs text-danger">{error}</p> : null}
+      <button
+        type="button"
+        onClick={() => void checkout()}
+        disabled={busy || !sellerConnected || Boolean(availableSizes.length && !size)}
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-mint to-cyan px-3 py-3 text-sm font-extrabold text-bg disabled:opacity-45"
+      >
+        {busy ? <LoaderCircle size={16} className="animate-spin" /> : <IconCart size={16} />}
+        {busy ? "Conectando con Stripe…" : `Pagar ${formatPrice(total, product.currency)}`}
+      </button>
+      <p className="text-center text-[10px] text-subtle">Pago seguro de Stripe. Apple Pay o Google Pay aparecerán si Stripe y el dispositivo los admiten.</p>
+    </div>
+  );
+}
+
+function OfferPanel({ product, onClose }: { product: Product; onClose: () => void }) {
+  const toastMsg = useApp((state) => state.toastMsg);
+  return (
+    <div className="space-y-3">
+      <div className="rounded-xl border border-line bg-bg-elevated p-4 text-center">
+        <p className="text-xs text-muted">{product.offerDetails || "Usa este código en el comercio"}</p>
+        <p className="mt-2 font-display text-2xl font-extrabold tracking-wider text-mint">{product.offerCode || "Oferta"}</p>
+      </div>
+      <OptionButton variant="mint" onClick={() => {
+        void navigator.clipboard.writeText(product.offerCode ?? "").then(() => toastMsg("Cupón copiado"));
+      }}>
+        Copiar código
+      </OptionButton>
+      {product.purchaseUrl ? <ExternalLinkPanel url={product.purchaseUrl} label={`Oferta de ${product.brand}`} onClose={onClose} /> : null}
+      <OptionButton variant="ghost" onClick={onClose}>Cerrar</OptionButton>
+    </div>
   );
 }
 

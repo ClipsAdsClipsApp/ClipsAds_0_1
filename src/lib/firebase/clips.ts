@@ -21,7 +21,7 @@ export type SharedClipDoc = {
   authorId: string;
   clip: Clip;
   product: Product;
-  author: Pick<Creator, "username" | "displayName" | "avatarUrl" | "role" | "city">;
+  author: Pick<Creator, "username" | "displayName" | "avatarUrl" | "role" | "city" | "stripeAccountId">;
   createdAt: number;
 };
 

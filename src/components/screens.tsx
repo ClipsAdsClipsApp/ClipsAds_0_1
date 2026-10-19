@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { uploadPresigned } from "@vercel/blob/client";
-import { Trash2 } from "lucide-react";
+import { CreditCard, ExternalLink, LoaderCircle, Trash2 } from "lucide-react";
 import { BottomNav, OptionButton } from "@/components/chrome";
 import {
   IconChart,
@@ -14,7 +14,7 @@ import {
 import { clipStats, creatorById, DISCLOSURE_LABEL, productById } from "@/lib/catalog";
 import { CATEGORIES, CREATORS, REVIEWS } from "@/lib/seed";
 import { useApp } from "@/lib/store";
-import type { CategoryId, Clip, Disclosure, UserProfile } from "@/lib/types";
+import type { CategoryId, Clip, CtaKind, Disclosure, PurchaseMode, UserProfile } from "@/lib/types";
 import { cn, formatCount, formatPrice } from "@/lib/utils";
 import { UserButton } from "@/lib/auth/gates";
 import { signOut } from "@/lib/firebase/auth";
@@ -232,7 +232,14 @@ export function CreateClip() {
   const [caption, setCaption] = useState("");
   const [category, setCategory] = useState<CategoryId>("tech");
   const [disclosure, setDisclosure] = useState<Disclosure>("organic");
-  const [cta, setCta] = useState<"buy" | "book" | "directions">("buy");
+  const [cta, setCta] = useState<CtaKind>("buy");
+  const [purchaseMode, setPurchaseMode] = useState<PurchaseMode>("internal");
+  const [purchaseUrl, setPurchaseUrl] = useState("");
+  const [bookingUrl, setBookingUrl] = useState("");
+  const [contactUrl, setContactUrl] = useState("");
+  const [offerCode, setOfferCode] = useState("");
+  const [offerDetails, setOfferDetails] = useState("");
+  const [sizeOptionsText, setSizeOptionsText] = useState("");
   const [address, setAddress] = useState("");
 
   useEffect(() => () => {
@@ -243,6 +250,22 @@ export function CreateClip() {
     if (!selectedFile || !name.trim()) return;
     if (cta === "directions" && !address.trim()) {
       setUploadError("Indica la dirección del local para el botón Cómo llegar.");
+      return;
+    }
+    if (cta === "buy" && purchaseMode === "external" && !isHttpUrl(purchaseUrl)) {
+      setUploadError("Pega un enlace de tienda válido que empiece por https://.");
+      return;
+    }
+    if (cta === "book" && !isHttpUrl(bookingUrl)) {
+      setUploadError("Añade un enlace de reservas válido que empiece por https://.");
+      return;
+    }
+    if (cta === "contact" && !isHttpUrl(contactUrl)) {
+      setUploadError("Añade un enlace de WhatsApp, chat o contacto que empiece por https://.");
+      return;
+    }
+    if (cta === "offer" && !offerCode.trim()) {
+      setUploadError("Indica el código de la oferta o cupón.");
       return;
     }
     setUploading(true);
@@ -324,9 +347,19 @@ export function CreateClip() {
           city: user?.city ?? "Parla",
           distanceKm: 0.4,
           cta,
+          purchaseMode: cta === "buy" ? purchaseMode : undefined,
+          purchaseUrl: cta === "buy" && purchaseMode === "external" ? purchaseUrl.trim() : undefined,
+          bookingUrl: cta === "book" ? bookingUrl.trim() || undefined : undefined,
+          contactUrl: cta === "contact" ? contactUrl.trim() : undefined,
+          offerCode: cta === "offer" ? offerCode.trim().slice(0, 40) : undefined,
+          offerDetails: cta === "offer" ? offerDetails.trim().slice(0, 160) : undefined,
+          sizeOptions: cta === "buy" && purchaseMode === "internal"
+            ? sizeOptionsText.split(",").map((size) => size.trim()).filter(Boolean).slice(0, 20)
+            : undefined,
+          sellerStripeAccountId: user?.stripeAccountId,
           address: cta === "directions" ? address.trim() : undefined,
           ctaLabel:
-            cta === "buy" ? "Comprar ahora" : cta === "book" ? "Reservar ahora" : "Cómo llegar",
+            cta === "buy" ? "Comprar" : cta === "book" ? "Reservar" : cta === "directions" ? "Cómo llegar" : cta === "contact" ? "Contactar" : "Ver oferta",
           fulfills: 100,
           wouldBuy: 100,
           verifiedOpinions: 1,
@@ -421,18 +454,67 @@ export function CreateClip() {
             </Chip>
           ))}
         </div>
-        <p className="mb-1 text-xs font-bold text-muted">Acción</p>
-        <div className="mb-4 flex flex-wrap gap-1.5">
-          <Chip on={cta === "buy"} onClick={() => setCta("buy")}>
-            Comprar
-          </Chip>
-          <Chip on={cta === "book"} onClick={() => setCta("book")}>
-            Reservar
-          </Chip>
-          <Chip on={cta === "directions"} onClick={() => setCta("directions")}>
-            Cómo llegar
-          </Chip>
-        </div>
+        <fieldset className="mb-4">
+          <legend className="mb-2 text-xs font-bold text-muted">Acción principal</legend>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {([
+              ["buy", "Comprar"],
+              ["book", "Reservar"],
+              ["contact", "Contactar / pedir info"],
+              ["offer", "Ver oferta / cupón"],
+              ["directions", "Cómo llegar"],
+            ] as const).map(([kind, label]) => (
+              <button
+                key={kind}
+                type="button"
+                aria-pressed={cta === kind}
+                onClick={() => setCta(kind)}
+                className={cn(
+                  "min-h-10 rounded-xl border px-3 py-2 text-xs font-bold transition-colors",
+                  cta === kind ? "border-cyan bg-cyan/10 text-cyan" : "border-line bg-bg-elevated text-muted",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+
+        {cta === "buy" ? (
+          <div className="mb-3 rounded-2xl border border-line bg-surface p-3">
+            <p className="mb-2 text-xs font-bold">Tipo de compra</p>
+            <div className="grid grid-cols-2 gap-2">
+              <Chip on={purchaseMode === "internal"} onClick={() => setPurchaseMode("internal")}>
+                Vender en ClipsApp
+              </Chip>
+              <Chip on={purchaseMode === "external"} onClick={() => setPurchaseMode("external")}>
+                Tienda externa
+              </Chip>
+            </div>
+            {purchaseMode === "external" ? (
+              <div className="mt-3">
+                <Field label="URL de la tienda" value={purchaseUrl} onChange={setPurchaseUrl} placeholder="https://mitienda.com/producto" />
+              </div>
+            ) : (
+              <div className="mt-3">
+                <Field label="Tallas u opciones (separadas por comas)" value={sizeOptionsText} onChange={setSizeOptionsText} placeholder="S, M, L o 38, 39, 40" />
+                <p className="mt-1 text-[11px] text-subtle">El cobro directo se activa al conectar Stripe Connect.</p>
+              </div>
+            )}
+          </div>
+        ) : null}
+        {cta === "book" ? (
+          <Field label="Enlace de reservas" value={bookingUrl} onChange={setBookingUrl} placeholder="https://calendly.com/tu-negocio" />
+        ) : null}
+        {cta === "contact" ? (
+          <Field label="WhatsApp, chat o contacto" value={contactUrl} onChange={setContactUrl} placeholder="https://wa.me/34600000000" />
+        ) : null}
+        {cta === "offer" ? (
+          <>
+            <Field label="Código de oferta o cupón" value={offerCode} onChange={setOfferCode} placeholder="CLIPS10" />
+            <Field label="Detalle de la oferta (opcional)" value={offerDetails} onChange={setOfferDetails} placeholder="10% de descuento hasta fin de mes" />
+          </>
+        ) : null}
         {cta === "directions" ? (
           <Field
             label="Dirección del local"
@@ -481,6 +563,15 @@ function Field({
       />
     </label>
   );
+}
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === "https:" && Boolean(url.hostname);
+  } catch {
+    return false;
+  }
 }
 
 export function Library() {
@@ -641,6 +732,7 @@ export function Profile() {
           city: next.city,
           avatarUrl: next.avatarUrl,
           role: next.role,
+          stripeAccountId: next.stripeAccountId,
         },
       });
       toastMsg("Perfil guardado");
@@ -853,6 +945,7 @@ function BusinessPanel() {
       <div className="mb-3 flex items-center gap-2 text-sm font-bold">
         <IconChart size={16} className="text-cyan" /> Panel de comercio
       </div>
+      <StripeConnectCard />
       <div className="mb-4 grid grid-cols-2 gap-2">
         {metrics.map((m) => (
           <div key={m.k} className="rounded-2xl border border-line bg-surface p-3">
@@ -891,6 +984,97 @@ function BusinessPanel() {
         </div>
       ))}
     </div>
+  );
+}
+
+function StripeConnectCard() {
+  const user = useApp((state) => state.user);
+  const updateUser = useApp((state) => state.updateUser);
+  const toastMsg = useApp((state) => state.toastMsg);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const connected = Boolean(user?.stripeAccountId);
+
+  async function connect() {
+    if (!user) return;
+    const firebaseUser = getFirebaseAuth().currentUser;
+    if (!firebaseUser || firebaseUser.uid !== user.id) {
+      setError("Inicia sesión para configurar los cobros del negocio.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/stripe/connect", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${await firebaseUser.getIdToken()}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ country: user.country || "ES" }),
+      });
+      const result = (await response.json()) as {
+        error?: string;
+        ready?: boolean;
+        stripeAccountId?: string;
+        url?: string;
+      };
+      if (!response.ok) throw new Error(result.error || "No se pudo iniciar Stripe Connect.");
+      if (result.stripeAccountId) {
+        updateUser({ stripeAccountId: result.stripeAccountId });
+        await saveMyProfile({ data: {
+          username: user.username,
+          displayName: user.displayName,
+          bio: user.bio,
+          city: user.city,
+          avatarUrl: user.avatarUrl,
+          role: user.role,
+          stripeAccountId: result.stripeAccountId,
+        } });
+      }
+      if (result.ready) {
+        toastMsg("Stripe Connect está listo para recibir pagos");
+      } else if (result.url) {
+        window.location.assign(result.url);
+      }
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "No se pudo configurar Stripe Connect.";
+      setError(message);
+      toastMsg(message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="mb-4 rounded-2xl border border-line bg-surface p-3">
+      <div className="flex items-start gap-3">
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-cyan/10 text-cyan">
+          <CreditCard size={18} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-bold">Cobros de ClipsApp</h3>
+          <p className="mt-1 text-xs text-muted">
+            {connected
+              ? "Cuenta Stripe Connect vinculada. Stripe confirma la habilitación para cobrar."
+              : "Conecta Stripe para recibir directamente los pagos de tus ventas."}
+          </p>
+        </div>
+        <span className={cn("shrink-0 text-[10px] font-bold", connected ? "text-mint" : "text-muted")}>
+          {connected ? "Vinculada" : "Pendiente"}
+        </span>
+      </div>
+      <button
+        type="button"
+        onClick={() => void connect()}
+        disabled={busy}
+        className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-bg-elevated px-3 py-2.5 text-xs font-bold disabled:opacity-50"
+      >
+        {busy ? <LoaderCircle size={15} className="animate-spin" /> : <ExternalLink size={15} />}
+        {busy ? "Conectando…" : connected ? "Continuar configuración de Stripe" : "Configurar pagos con Stripe"}
+      </button>
+      {error ? <p role="alert" className="mt-2 text-xs text-danger">{error}</p> : null}
+    </section>
   );
 }
 

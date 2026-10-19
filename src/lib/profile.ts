@@ -15,6 +15,7 @@ export type SavedProfile = {
   city: string;
   avatarUrl: string;
   role: string;
+  stripeAccountId?: string;
 };
 
 export async function getMyProfile(): Promise<SavedProfile | null> {
@@ -35,6 +36,7 @@ export async function saveMyProfile({ data: input }: { data: {
     city: string;
     avatarUrl: string;
     role: string;
+    stripeAccountId?: string;
   } }): Promise<SavedProfile> {
   const user = getFirebaseAuth().currentUser;
   if (!user) throw new Error("Inicia sesión para guardar tu perfil.");
@@ -47,6 +49,7 @@ export async function saveMyProfile({ data: input }: { data: {
     city: input.city.trim().slice(0, 40) || "Parla",
     avatarUrl: input.avatarUrl.slice(0, 350_000),
     role: ["user", "creator", "business"].includes(input.role) ? input.role : "user",
+    ...(input.stripeAccountId ? { stripeAccountId: input.stripeAccountId } : {}),
   };
   await setDoc(
     doc(getFirebaseFirestore(), "users", user.uid),

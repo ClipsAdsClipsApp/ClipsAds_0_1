@@ -12,6 +12,9 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ApiBlobUploadRouteImport } from './routes/api/blob/upload'
+import { Route as ApiStripeCheckoutRouteImport } from './routes/api/stripe/checkout'
+import { Route as ApiStripeConnectRouteImport } from './routes/api/stripe/connect'
+import { Route as ApiStripeCheckoutVerifyRouteImport } from './routes/api/stripe/checkout/verify'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -28,35 +31,80 @@ const ApiBlobUploadRoute = ApiBlobUploadRouteImport.update({
   path: '/api/blob/upload',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiStripeCheckoutRoute = ApiStripeCheckoutRouteImport.update({
+  id: '/api/stripe/checkout',
+  path: '/api/stripe/checkout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiStripeConnectRoute = ApiStripeConnectRouteImport.update({
+  id: '/api/stripe/connect',
+  path: '/api/stripe/connect',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiStripeCheckoutVerifyRoute = ApiStripeCheckoutVerifyRouteImport.update({
+  id: '/verify',
+  path: '/verify',
+  getParentRoute: () => ApiStripeCheckoutRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/api/blob/upload': typeof ApiBlobUploadRoute
+  '/api/stripe/checkout': typeof ApiStripeCheckoutRouteWithChildren
+  '/api/stripe/connect': typeof ApiStripeConnectRoute
+  '/api/stripe/checkout/verify': typeof ApiStripeCheckoutVerifyRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/api/blob/upload': typeof ApiBlobUploadRoute
+  '/api/stripe/checkout': typeof ApiStripeCheckoutRouteWithChildren
+  '/api/stripe/connect': typeof ApiStripeConnectRoute
+  '/api/stripe/checkout/verify': typeof ApiStripeCheckoutVerifyRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/api/blob/upload': typeof ApiBlobUploadRoute
+  '/api/stripe/checkout': typeof ApiStripeCheckoutRouteWithChildren
+  '/api/stripe/connect': typeof ApiStripeConnectRoute
+  '/api/stripe/checkout/verify': typeof ApiStripeCheckoutVerifyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/api/blob/upload'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/api/blob/upload'
+    | '/api/stripe/checkout'
+    | '/api/stripe/connect'
+    | '/api/stripe/checkout/verify'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/api/blob/upload'
-  id: '__root__' | '/' | '/login' | '/api/blob/upload'
+  to:
+    | '/'
+    | '/login'
+    | '/api/blob/upload'
+    | '/api/stripe/checkout'
+    | '/api/stripe/connect'
+    | '/api/stripe/checkout/verify'
+  id:
+    | '__root__'
+    | '/'
+    | '/login'
+    | '/api/blob/upload'
+    | '/api/stripe/checkout'
+    | '/api/stripe/connect'
+    | '/api/stripe/checkout/verify'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
   ApiBlobUploadRoute: typeof ApiBlobUploadRoute
+  ApiStripeCheckoutRoute: typeof ApiStripeCheckoutRouteWithChildren
+  ApiStripeConnectRoute: typeof ApiStripeConnectRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -82,13 +130,47 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiBlobUploadRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/stripe/checkout': {
+      id: '/api/stripe/checkout'
+      path: '/api/stripe/checkout'
+      fullPath: '/api/stripe/checkout'
+      preLoaderRoute: typeof ApiStripeCheckoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/stripe/connect': {
+      id: '/api/stripe/connect'
+      path: '/api/stripe/connect'
+      fullPath: '/api/stripe/connect'
+      preLoaderRoute: typeof ApiStripeConnectRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/stripe/checkout/verify': {
+      id: '/api/stripe/checkout/verify'
+      path: '/verify'
+      fullPath: '/api/stripe/checkout/verify'
+      preLoaderRoute: typeof ApiStripeCheckoutVerifyRouteImport
+      parentRoute: typeof ApiStripeCheckoutRoute
+    }
   }
 }
+
+interface ApiStripeCheckoutRouteChildren {
+  ApiStripeCheckoutVerifyRoute: typeof ApiStripeCheckoutVerifyRoute
+}
+
+const ApiStripeCheckoutRouteChildren: ApiStripeCheckoutRouteChildren = {
+  ApiStripeCheckoutVerifyRoute: ApiStripeCheckoutVerifyRoute,
+}
+
+const ApiStripeCheckoutRouteWithChildren =
+  ApiStripeCheckoutRoute._addFileChildren(ApiStripeCheckoutRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
   ApiBlobUploadRoute: ApiBlobUploadRoute,
+  ApiStripeCheckoutRoute: ApiStripeCheckoutRouteWithChildren,
+  ApiStripeConnectRoute: ApiStripeConnectRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
