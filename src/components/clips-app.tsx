@@ -23,6 +23,7 @@ export function ClipsApp() {
   const authorStripeAccountId = useApp((s) => s.user?.stripeAccountId);
   const tab = useApp((s) => s.tab);
   const toastMsg = useApp((s) => s.toastMsg);
+  const signingOut = useApp((s) => s.signingOut);
   const { user: session, isPending } = useCurrentUserState();
   const [profileReady, setProfileReady] = useState(false);
   const [purchaseFeedback, setPurchaseFeedback] = useState<{
@@ -169,7 +170,7 @@ export function ClipsApp() {
 
   return (
     <PhoneFrame>
-      {isPending || !profileReady ? (
+      {signingOut || isPending || !profileReady ? (
         <div className="grid h-full place-items-center bg-bg">
           <div className="h-12 w-12 animate-pulse rounded-2xl bg-cyan/30" />
         </div>

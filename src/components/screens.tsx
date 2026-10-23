@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { uploadPresigned } from "@vercel/blob/client";
 import { CreditCard, ExternalLink, LoaderCircle, Trash2 } from "lucide-react";
 import { BottomNav, OptionButton } from "@/components/chrome";
@@ -17,7 +17,7 @@ import { useApp } from "@/lib/store";
 import type { CategoryId, Clip, CtaKind, Disclosure, PurchaseMode, UserProfile } from "@/lib/types";
 import { cn, formatCount, formatPrice } from "@/lib/utils";
 import { UserButton } from "@/lib/auth/gates";
-import { signOut } from "@/lib/firebase/auth";
+import { changePassword, signOut } from "@/lib/firebase/auth";
 import { firebaseConfigured, getFirebaseAuth } from "@/lib/firebase/client";
 import { subscribeMySharedClips } from "@/lib/firebase/clips";
 import { saveMyProfile } from "@/lib/profile";
@@ -706,6 +706,7 @@ export function Profile() {
   const user = useApp((s) => s.user);
   const updateUser = useApp((s) => s.updateUser);
   const logout = useApp((s) => s.logout);
+  const setSigningOut = useApp((s) => s.setSigningOut);
   const liked = useApp((s) => s.liked);
   const saved = useApp((s) => s.saved);
   const following = useApp((s) => s.following);
@@ -714,6 +715,13 @@ export function Profile() {
   const [displayName, setDisplayName] = useState(user?.displayName ?? "");
   const [bio, setBio] = useState(user?.bio ?? "");
   const [saving, setSaving] = useState(false);
+  const [passwordPanelOpen, setPasswordPanelOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [passwordBusy, setPasswordBusy] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordNotice, setPasswordNotice] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   if (!user) return null;
@@ -740,6 +748,37 @@ export function Profile() {
       toastMsg("No se pudo guardar");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function submitPasswordChange(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPasswordError(null);
+    setPasswordNotice(null);
+    if (newPassword.length < 8) {
+      setPasswordError("La nueva contraseña debe tener al menos 8 caracteres.");
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setPasswordError("Las contraseñas nuevas no coinciden.");
+      return;
+    }
+    setPasswordBusy(true);
+    try {
+      await changePassword(currentPassword, newPassword);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmNewPassword("");
+      setPasswordNotice("Contraseña actualizada.");
+    } catch (error) {
+      const code = error && typeof error === "object" && "code" in error ? error.code : null;
+      if (code === "auth/invalid-credential" || code === "auth/wrong-password") {
+        setPasswordError("La contraseña actual no es correcta.");
+      } else {
+        setPasswordError(error instanceof Error ? error.message : "No se pudo cambiar la contraseña.");
+      }
+    } finally {
+      setPasswordBusy(false);
     }
   }
 
@@ -876,9 +915,74 @@ export function Profile() {
             />
             <button
               type="button"
+              aria-expanded={passwordPanelOpen}
               onClick={() => {
+                setPasswordPanelOpen((open) => !open);
+                setPasswordError(null);
+                setPasswordNotice(null);
+              }}
+              className="mt-4 flex w-full items-center justify-between rounded-[14px] border border-line bg-surface px-3 py-3 text-left text-sm font-bold"
+            >
+              Cambiar contraseña
+              <span className="text-muted">{passwordPanelOpen ? "−" : "+"}</span>
+            </button>
+            {passwordPanelOpen ? (
+              <form onSubmit={(event) => void submitPasswordChange(event)} className="mt-2 space-y-2 rounded-[14px] border border-line bg-surface p-3">
+                <label className="block">
+                  <span className="mb-1 block text-xs font-bold text-muted">Contraseña actual</span>
+                  <input
+                    type="password"
+                    autoComplete="current-password"
+                    value={currentPassword}
+                    onChange={(event) => setCurrentPassword(event.target.value)}
+                    required
+                    className="w-full rounded-[14px] border border-line bg-bg-elevated px-3 py-3 text-sm outline-none"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-bold text-muted">Nueva contraseña</span>
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    value={newPassword}
+                    onChange={(event) => setNewPassword(event.target.value)}
+                    minLength={8}
+                    required
+                    className="w-full rounded-[14px] border border-line bg-bg-elevated px-3 py-3 text-sm outline-none"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-bold text-muted">Confirmar nueva contraseña</span>
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    value={confirmNewPassword}
+                    onChange={(event) => setConfirmNewPassword(event.target.value)}
+                    minLength={8}
+                    required
+                    className="w-full rounded-[14px] border border-line bg-bg-elevated px-3 py-3 text-sm outline-none"
+                  />
+                </label>
+                {passwordError ? <p role="alert" className="text-xs text-danger">{passwordError}</p> : null}
+                {passwordNotice ? <p role="status" className="text-xs text-cyan">{passwordNotice}</p> : null}
+                <button
+                  type="submit"
+                  disabled={passwordBusy || !currentPassword || newPassword.length < 8 || !confirmNewPassword}
+                  className="w-full rounded-[14px] bg-[linear-gradient(90deg,#2ee6d6,#7cffb2)] py-3 text-sm font-extrabold text-bg disabled:opacity-40"
+                >
+                  {passwordBusy ? "Actualizando…" : "Guardar nueva contraseña"}
+                </button>
+              </form>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => {
+                setSigningOut(true);
                 logout();
-                void signOut().catch(() => undefined);
+                void signOut().catch(() => {
+                  setSigningOut(false);
+                  toastMsg("No se pudo cerrar sesión. Inténtalo de nuevo.");
+                });
               }}
               className="mt-4 flex w-full items-center justify-center gap-2 rounded-[14px] border border-line bg-surface py-3 text-sm font-bold"
             >

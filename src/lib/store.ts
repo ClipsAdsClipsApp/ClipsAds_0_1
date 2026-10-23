@@ -76,6 +76,8 @@ interface Persisted {
 
 interface AppState extends Persisted {
   ready: boolean;
+  signingOut: boolean;
+  setSigningOut: (value: boolean) => void;
   remote: SharedClipDoc[];
   clipVotes: Record<string, ClipVoteSummary>;
   setRemote: (docs: SharedClipDoc[]) => void;
@@ -166,6 +168,8 @@ const empty: Persisted = {
 export const useApp = create<AppState>((set, get) => ({
   ...empty,
   ready: false,
+  signingOut: false,
+  setSigningOut: (signingOut) => set({ signingOut }),
   remote: [],
   clipVotes: {},
   tab: "home",

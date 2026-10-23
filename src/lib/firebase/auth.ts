@@ -1,12 +1,15 @@
 import {
+  EmailAuthProvider,
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
   onAuthStateChanged,
+  reauthenticateWithCredential,
   sendEmailVerification,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut as firebaseSignOut,
+  updatePassword as firebaseUpdatePassword,
   updateProfile,
   type User,
 } from "firebase/auth";
@@ -94,6 +97,17 @@ export async function refreshEmailVerification(): Promise<FirebaseUserInfo> {
 
 export async function sendPasswordReset(email: string): Promise<void> {
   await sendPasswordResetEmail(getFirebaseAuth(), email.trim());
+}
+
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  const user = getFirebaseAuth().currentUser;
+  if (!user?.email) throw new Error("Inicia sesión para cambiar tu contraseña.");
+  if (!user.providerData.some((provider) => provider.providerId === "password")) {
+    throw new Error("Esta cuenta no tiene una contraseña de ClipsApp para cambiar.");
+  }
+  const credential = EmailAuthProvider.credential(user.email, currentPassword);
+  await reauthenticateWithCredential(user, credential);
+  await firebaseUpdatePassword(user, newPassword);
 }
 
 export async function signIn(providerId: string, callbackURL = "/"): Promise<void> {
