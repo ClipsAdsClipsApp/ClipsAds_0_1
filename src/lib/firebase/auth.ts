@@ -2,6 +2,8 @@ import {
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
   onAuthStateChanged,
+  sendEmailVerification,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut as firebaseSignOut,
@@ -23,6 +25,7 @@ export type FirebaseUserInfo = {
   displayName: string | null;
   primaryEmail: string | null;
   profileImageUrl: string | null;
+  emailVerified: boolean;
   isDevFallback: false;
 };
 
@@ -32,6 +35,7 @@ export function toFirebaseUserInfo(user: User): FirebaseUserInfo {
     displayName: user.displayName,
     primaryEmail: user.email,
     profileImageUrl: user.photoURL,
+    emailVerified: user.emailVerified,
     isDevFallback: false,
   };
 }
@@ -59,6 +63,7 @@ export async function registerWithEmail(
     password,
   );
   await updateProfile(credential.user, { displayName: displayName.trim() });
+  await sendEmailVerification(credential.user);
   return toFirebaseUserInfo(credential.user);
 }
 
@@ -72,6 +77,23 @@ export async function signInWithEmail(
     password,
   );
   return toFirebaseUserInfo(credential.user);
+}
+
+export async function resendVerificationEmail(): Promise<void> {
+  const user = getFirebaseAuth().currentUser;
+  if (!user) throw new Error("Inicia sesión para verificar tu correo.");
+  await sendEmailVerification(user);
+}
+
+export async function refreshEmailVerification(): Promise<FirebaseUserInfo> {
+  const user = getFirebaseAuth().currentUser;
+  if (!user) throw new Error("Inicia sesión para verificar tu correo.");
+  await user.reload();
+  return toFirebaseUserInfo(user);
+}
+
+export async function sendPasswordReset(email: string): Promise<void> {
+  await sendPasswordResetEmail(getFirebaseAuth(), email.trim());
 }
 
 export async function signIn(providerId: string, callbackURL = "/"): Promise<void> {

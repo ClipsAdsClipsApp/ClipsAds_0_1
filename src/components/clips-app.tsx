@@ -139,6 +139,7 @@ export function ClipsApp() {
             username: p.username,
             displayName: p.displayName,
             email: session.primaryEmail || "",
+            phone: p.phone || "",
             avatarUrl: p.avatarUrl || session.profileImageUrl || "/avatars/user.jpg",
             role: (p.role as Role) || "user",
             bio: p.bio,
@@ -174,6 +175,8 @@ export function ClipsApp() {
         </div>
       ) : !session ? (
         <Onboarding />
+      ) : !session.emailVerified ? (
+        <Onboarding session={session} />
       ) : !user || user.id !== session.id ? (
         <Onboarding session={session} />
       ) : (

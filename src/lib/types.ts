@@ -51,6 +51,7 @@ export interface UserProfile {
   username: string;
   displayName: string;
   email: string;
+  phone?: string;
   avatarUrl: string;
   role: Role;
   bio: string;

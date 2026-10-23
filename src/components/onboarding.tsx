@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { CATEGORIES } from "@/lib/seed";
 import { useApp } from "@/lib/store";
 import type { AgeRange, CategoryId, Gender, Role, UserProfile } from "@/lib/types";
@@ -9,9 +9,13 @@ import {
   authEnabled,
   FIREBASE_PROVIDERS,
   firebaseConfigured,
+  refreshEmailVerification,
   registerWithEmail,
+  resendVerificationEmail,
+  sendPasswordReset,
   signIn,
   signInWithEmail,
+  signOut,
 } from "@/lib/firebase/auth";
 import { saveMyProfile } from "@/lib/profile";
 import { COUNTRIES, DEFAULT_LOCATION, citiesOf, provincesOf } from "@/lib/locations";
@@ -33,10 +37,13 @@ const ROLES: { id: Role; label: string; hint: string }[] = [
 export function Onboarding({ session }: { session?: AppUser | null }) {
   const login = useApp((s) => s.login);
   const [mode, setMode] = useState<"login" | "register">("register");
-  const [step, setStep] = useState<"auth" | "prefs">(session ? "prefs" : "auth");
+  const [step, setStep] = useState<"auth" | "verify" | "prefs">(
+    session ? (session.emailVerified ? "prefs" : "verify") : "auth",
+  );
   const [email, setEmail] = useState(session?.primaryEmail ?? "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [phone, setPhone] = useState("");
   const [username, setUsername] = useState(
     session?.displayName?.replace(/\s/g, "").toLowerCase() ?? "",
   );
@@ -50,11 +57,19 @@ export function Onboarding({ session }: { session?: AppUser | null }) {
   const [personalizeAds, setPersonalizeAds] = useState(true);
   const [approximateLocation, setApproximateLocation] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!session) return;
+    setEmail(session.primaryEmail ?? "");
+    setStep(session.emailVerified ? "prefs" : "verify");
+  }, [session?.id, session?.primaryEmail, session?.emailVerified]);
 
   async function submitAuth(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    setNotice(null);
     if (mode === "register" && password !== confirmPassword) {
       setError("Las contraseñas no coinciden.");
       return;
@@ -65,7 +80,12 @@ export function Onboarding({ session }: { session?: AppUser | null }) {
         throw new Error("Firebase no está configurado para esta aplicación.");
       }
       if (mode === "login") {
-        await signInWithEmail(email, password);
+        const user = await signInWithEmail(email, password);
+        if (!user.emailVerified) {
+          setStep("verify");
+          setNotice("Confirma tu correo antes de crear el perfil.");
+          return;
+        }
         window.location.assign("/");
         return;
       }
@@ -74,9 +94,67 @@ export function Onboarding({ session }: { session?: AppUser | null }) {
         password,
         username || email.split("@")[0] || "usuario",
       );
-      window.location.assign("/");
+      setStep("verify");
+      setNotice("Te enviamos un enlace seguro para verificar tu correo.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error de acceso");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function recoverPassword() {
+    if (!email.trim()) {
+      setError("Escribe tu correo para enviarte el enlace de recuperación.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await sendPasswordReset(email);
+      setNotice("Si existe una cuenta con ese correo, recibirás un enlace seguro para restablecer la contraseña.");
+    } catch (err) {
+      const code = err && typeof err === "object" && "code" in err ? err.code : null;
+      if (code === "auth/user-not-found") {
+        setNotice("Si existe una cuenta con ese correo, recibirás un enlace seguro para restablecer la contraseña.");
+      } else if (code === "auth/invalid-email") {
+        setError("Escribe un correo válido.");
+      } else {
+        setError("No se pudo enviar el enlace. Inténtalo de nuevo más tarde.");
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function checkEmailVerification() {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const user = await refreshEmailVerification();
+      if (!user.emailVerified) {
+        setError("Aún no vemos la verificación. Abre el enlace del correo y vuelve a intentarlo.");
+        return;
+      }
+      window.location.assign("/");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo comprobar el correo.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resendVerification() {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await resendVerificationEmail();
+      setNotice("Te reenviamos el enlace de verificación.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo reenviar el enlace.");
     } finally {
       setBusy(false);
     }
@@ -91,6 +169,7 @@ export function Onboarding({ session }: { session?: AppUser | null }) {
         data: {
           username: name,
           displayName: name,
+          phone,
           bio: "Nuevo en ClipsApp",
           country,
           province,
@@ -104,6 +183,7 @@ export function Onboarding({ session }: { session?: AppUser | null }) {
         username: saved.username,
         displayName: saved.displayName,
         email: email || session?.primaryEmail || `${name}@clips.app`,
+        phone: saved.phone || "",
         avatarUrl: saved.avatarUrl || "/avatars/user.jpg",
         role: saved.role as Role,
         bio: saved.bio,
@@ -143,6 +223,7 @@ export function Onboarding({ session }: { session?: AppUser | null }) {
                 onClick={() => {
                   setMode("register");
                   setError(null);
+                  setNotice(null);
                   setConfirmPassword("");
                 }}
               >
@@ -153,6 +234,7 @@ export function Onboarding({ session }: { session?: AppUser | null }) {
                 onClick={() => {
                   setMode("login");
                   setError(null);
+                  setNotice(null);
                   setConfirmPassword("");
                 }}
               >
@@ -189,6 +271,7 @@ export function Onboarding({ session }: { session?: AppUser | null }) {
                 type="password"
               />
             ) : null}
+            {notice ? <p role="status" className="text-xs text-cyan">{notice}</p> : null}
             {error ? <p className="text-xs text-red-400">{error}</p> : null}
             <button
               type="submit"
@@ -197,6 +280,16 @@ export function Onboarding({ session }: { session?: AppUser | null }) {
             >
               {busy ? "…" : mode === "register" ? "Continuar" : "Entrar"}
             </button>
+            {mode === "login" ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void recoverPassword()}
+                className="w-full py-1 text-xs font-bold text-cyan disabled:opacity-50"
+              >
+                ¿Olvidaste tu contraseña?
+              </button>
+            ) : null}
             <div className="grid grid-cols-2 gap-2 pt-1">
               {FIREBASE_PROVIDERS.map((p) => (
                 <button
@@ -213,10 +306,44 @@ export function Onboarding({ session }: { session?: AppUser | null }) {
               ))}
             </div>
           </form>
+        ) : step === "verify" ? (
+          <div className="space-y-3">
+            <p className="text-sm font-bold">Verifica tu correo</p>
+            <p className="text-sm text-muted">
+              Enviamos un enlace seguro a <strong>{email || session?.primaryEmail}</strong>. Ábrelo y vuelve aquí para continuar.
+            </p>
+            {notice ? <p role="status" className="text-xs text-cyan">{notice}</p> : null}
+            {error ? <p className="text-xs text-red-400">{error}</p> : null}
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void checkEmailVerification()}
+              className="w-full rounded-[14px] bg-[linear-gradient(90deg,#2ee6d6,#7cffb2)] py-3 text-sm font-extrabold text-bg disabled:opacity-50"
+            >
+              {busy ? "Comprobando…" : "Ya verifiqué mi correo"}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void resendVerification()}
+              className="w-full rounded-[14px] border border-line bg-surface py-3 text-sm font-bold disabled:opacity-50"
+            >
+              Reenviar enlace
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void signOut()}
+              className="w-full py-2 text-xs font-bold text-muted disabled:opacity-50"
+            >
+              Cambiar de cuenta
+            </button>
+          </div>
         ) : (
           <div className="space-y-3">
             <p className="text-sm font-bold">Tu perfil</p>
             <Field label="Usuario" value={username} onChange={setUsername} placeholder="@usuario" />
+            <Field label="Teléfono" value={phone} onChange={setPhone} placeholder="+34 600 000 000" type="tel" />
             <p className="text-xs font-bold text-muted">Rol</p>
             <div className="grid grid-cols-3 gap-1.5">
               {ROLES.map((r) => (
