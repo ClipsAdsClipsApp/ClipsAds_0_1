@@ -36,6 +36,7 @@ export function Onboarding({ session }: { session?: AppUser | null }) {
   const [step, setStep] = useState<"auth" | "prefs">(session ? "prefs" : "auth");
   const [email, setEmail] = useState(session?.primaryEmail ?? "");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [username, setUsername] = useState(
     session?.displayName?.replace(/\s/g, "").toLowerCase() ?? "",
   );
@@ -53,8 +54,12 @@ export function Onboarding({ session }: { session?: AppUser | null }) {
 
   async function submitAuth(e: FormEvent) {
     e.preventDefault();
-    setBusy(true);
     setError(null);
+    if (mode === "register" && password !== confirmPassword) {
+      setError("Las contraseñas no coinciden.");
+      return;
+    }
+    setBusy(true);
     try {
       if (!authEnabled) {
         throw new Error("Firebase no está configurado para esta aplicación.");
@@ -133,10 +138,24 @@ export function Onboarding({ session }: { session?: AppUser | null }) {
         {step === "auth" ? (
           <form onSubmit={submitAuth} className="onboarding-form space-y-2.5">
             <div className="mb-1 grid grid-cols-2 gap-1 rounded-[14px] bg-fg/5 p-1">
-              <TabBtn on={mode === "register"} onClick={() => setMode("register")}>
+              <TabBtn
+                on={mode === "register"}
+                onClick={() => {
+                  setMode("register");
+                  setError(null);
+                  setConfirmPassword("");
+                }}
+              >
                 Crear cuenta
               </TabBtn>
-              <TabBtn on={mode === "login"} onClick={() => setMode("login")}>
+              <TabBtn
+                on={mode === "login"}
+                onClick={() => {
+                  setMode("login");
+                  setError(null);
+                  setConfirmPassword("");
+                }}
+              >
                 Entrar
               </TabBtn>
             </div>
@@ -161,6 +180,15 @@ export function Onboarding({ session }: { session?: AppUser | null }) {
               placeholder="Mínimo 8 caracteres"
               type="password"
             />
+            {mode === "register" ? (
+              <Field
+                label="Confirmar contraseña"
+                value={confirmPassword}
+                onChange={setConfirmPassword}
+                placeholder="Repite tu contraseña"
+                type="password"
+              />
+            ) : null}
             {error ? <p className="text-xs text-red-400">{error}</p> : null}
             <button
               type="submit"
