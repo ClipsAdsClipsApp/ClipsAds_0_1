@@ -1,6 +1,6 @@
 export type Role = "user" | "creator" | "business";
 export type Gender = "woman" | "man" | "nonbinary" | "prefer_not";
-export type AgeRange = "18-24" | "25-34" | "35-44" | "45-54" | "55+";
+export type AgeRange = "14-17" | "18-24" | "25-34" | "35-44" | "45-54" | "55+";
 export type Currency = "EUR" | "USD";
 export type Tab = "home" | "explore" | "create" | "clips" | "profile";
 export type FeedMode = "for-you" | "discover";
@@ -143,6 +143,8 @@ export interface Clip {
   adNo?: number;
   local: boolean;
   sponsored: boolean;
+  /** Vacío o ausente = todas las edades. */
+  ageRanges?: AgeRange[];
   country?: string;
   province?: string;
   createdAt: number;

@@ -10,7 +10,7 @@ import { firebaseConfigured, getFirebaseAuth } from "@/lib/firebase/client";
 import { subscribeSharedClips, syncSharedAuthor } from "@/lib/firebase/clips";
 import { getMyProfile } from "@/lib/profile";
 import { useApp } from "@/lib/store";
-import type { Role, UserProfile } from "@/lib/types";
+import type { AgeRange, Role, UserProfile } from "@/lib/types";
 
 export function ClipsApp() {
   const hydrate = useApp((s) => s.hydrate);
@@ -145,7 +145,7 @@ export function ClipsApp() {
             avatarUrl: p.avatarUrl || session.profileImageUrl || "/avatars/user.jpg",
             role: (p.role as Role) || "user",
             bio: p.bio,
-            ageRange: "25-34",
+            ageRange: (p.ageRange as AgeRange) || "25-34",
             gender: "prefer_not",
             city: p.city,
             country: p.country || undefined,

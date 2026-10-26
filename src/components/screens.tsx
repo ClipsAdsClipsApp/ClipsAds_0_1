@@ -11,10 +11,10 @@ import {
   IconShield,
   IconStar,
 } from "@/components/icons";
-import { clipStats, creatorById, DISCLOSURE_LABEL, productById } from "@/lib/catalog";
+import { ADULT_AGE_RANGES, clipLikes, clipStats, creatorById, DISCLOSURE_LABEL, productById } from "@/lib/catalog";
 import { CATEGORIES, CREATORS, REVIEWS } from "@/lib/seed";
 import { useApp } from "@/lib/store";
-import type { CategoryId, Clip, CtaKind, Disclosure, PurchaseMode, UserProfile } from "@/lib/types";
+import type { AgeRange, CategoryId, Clip, CtaKind, Disclosure, PurchaseMode, UserProfile } from "@/lib/types";
 import { cn, formatCount, formatPrice } from "@/lib/utils";
 import { UserButton } from "@/lib/auth/gates";
 import { openCookieSettings } from "@/components/cookie-consent";
@@ -199,6 +199,11 @@ function captureFrame(url: string): Promise<string | undefined> {
   });
 }
 
+function ClipLikes({ clip }: { clip: Clip }) {
+  const votes = useApp((s) => s.clipVotes[clip.id]);
+  return <>{formatCount(clipLikes(clip, votes?.adYes ?? 0))} me gusta</>;
+}
+
 function ClipTile({ clip, onOpen }: { clip: Clip; onOpen: () => void }) {
   const products = useApp((s) => s.products);
   const p = productById(clip.productId, products);
@@ -212,7 +217,7 @@ function ClipTile({ clip, onOpen }: { clip: Clip; onOpen: () => void }) {
       </div>
       <div className="bg-surface p-2">
         <div className="line-clamp-2 text-xs font-bold">{p.name}</div>
-        <div className="text-[10px] text-muted">{formatCount(clip.likes)} me gusta</div>
+        <div className="text-[10px] text-muted"><ClipLikes clip={clip} /></div>
       </div>
     </button>
   );
@@ -233,6 +238,7 @@ export function CreateClip() {
   const [caption, setCaption] = useState("");
   const [category, setCategory] = useState<CategoryId>("tech");
   const [disclosure, setDisclosure] = useState<Disclosure>("organic");
+  const [targetAges, setTargetAges] = useState<AgeRange[]>([]);
   const [cta, setCta] = useState<CtaKind>("buy");
   const [purchaseMode, setPurchaseMode] = useState<PurchaseMode>("internal");
   const [purchaseUrl, setPurchaseUrl] = useState("");
@@ -334,6 +340,7 @@ export function CreateClip() {
           adNo: 0,
           local: cta !== "buy",
           sponsored: disclosure === "sponsored",
+          ageRanges: targetAges.length ? targetAges : undefined,
           createdAt: Date.now(),
         },
         {
@@ -455,6 +462,34 @@ export function CreateClip() {
             </Chip>
           ))}
         </div>
+        <fieldset className="mb-4">
+          <legend className="mb-1 text-xs font-bold text-muted">Segmentar por edad</legend>
+          <p className="mb-2 text-[11px] text-subtle">Solo verán este clip las edades que elijas.</p>
+          <div className="flex flex-wrap gap-1.5">
+            <Chip on={targetAges.length === 0} onClick={() => setTargetAges([])}>
+              Todas las edades
+            </Chip>
+            <Chip
+              on={targetAges.length === ADULT_AGE_RANGES.length && ADULT_AGE_RANGES.every((a) => targetAges.includes(a))}
+              onClick={() => setTargetAges(ADULT_AGE_RANGES)}
+            >
+              No apto para menores de 18
+            </Chip>
+            {(["14-17", ...ADULT_AGE_RANGES] as AgeRange[]).map((range) => (
+              <Chip
+                key={range}
+                on={targetAges.includes(range)}
+                onClick={() =>
+                  setTargetAges((current) =>
+                    current.includes(range) ? current.filter((a) => a !== range) : [...current, range],
+                  )
+                }
+              >
+                {range}
+              </Chip>
+            ))}
+          </div>
+        </fieldset>
         <fieldset className="mb-4">
           <legend className="mb-2 text-xs font-bold text-muted">Acción principal</legend>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -673,7 +708,7 @@ export function Library() {
                     <div className="min-w-0 flex-1 self-center">
                       <div className="truncate text-sm font-bold">{product.name}</div>
                       <div className="text-[11px] text-muted">
-                        {formatCount(clip.likes)} me gusta · {stats.wouldBuy}% lo compraría
+                        <ClipLikes clip={clip} /> · {stats.wouldBuy}% lo compraría
                       </div>
                     </div>
                   </button>
@@ -708,7 +743,7 @@ export function Profile() {
   const updateUser = useApp((s) => s.updateUser);
   const logout = useApp((s) => s.logout);
   const setSigningOut = useApp((s) => s.setSigningOut);
-  const liked = useApp((s) => s.liked);
+  const adLike = useApp((s) => s.adLike);
   const saved = useApp((s) => s.saved);
   const following = useApp((s) => s.following);
   const toastMsg = useApp((s) => s.toastMsg);
@@ -741,6 +776,7 @@ export function Profile() {
           city: next.city,
           avatarUrl: next.avatarUrl,
           role: next.role,
+          ageRange: next.ageRange,
           stripeAccountId: next.stripeAccountId,
         },
       });
@@ -839,7 +875,7 @@ export function Profile() {
           </div>
         </div>
         <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-          <Stat n={liked.length} label="Me gusta" />
+          <Stat n={Object.values(adLike).filter((v) => v === "yes").length} label="Me gusta" />
           <Stat n={saved.length} label="Guardados" />
           <Stat n={following.length} label="Siguiendo" />
         </div>

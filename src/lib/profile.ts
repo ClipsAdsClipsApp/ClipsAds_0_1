@@ -10,6 +10,7 @@ export type SavedProfile = {
   username: string;
   displayName: string;
   phone?: string;
+  ageRange?: string;
   bio: string;
   country?: string;
   province?: string;
@@ -32,6 +33,7 @@ export async function saveMyProfile({ data: input }: { data: {
     username: string;
     displayName: string;
     phone?: string;
+    ageRange?: string;
     bio: string;
     country?: string;
     province?: string;
@@ -53,6 +55,7 @@ export async function saveMyProfile({ data: input }: { data: {
     avatarUrl: input.avatarUrl.slice(0, 350_000),
     role: ["user", "creator", "business"].includes(input.role) ? input.role : "user",
     ...(input.stripeAccountId ? { stripeAccountId: input.stripeAccountId } : {}),
+    ...(input.ageRange ? { ageRange: input.ageRange } : {}),
   };
   await setDoc(
     doc(getFirebaseFirestore(), "users", user.uid),

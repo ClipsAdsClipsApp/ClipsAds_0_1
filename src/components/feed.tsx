@@ -10,13 +10,13 @@ import {
   IconPlay,
   IconSound,
 } from "@/components/icons";
-import { clipStats, DISCLOSURE_HINT, DISCLOSURE_LABEL, productById, useAuthor, useProduct } from "@/lib/catalog";
+import { clipStats, DISCLOSURE_HINT, DISCLOSURE_LABEL, isClipAllowedFor, productById, useAuthor, useProduct } from "@/lib/catalog";
 import { firebaseConfigured } from "@/lib/firebase/client";
 import { subscribeClipComments, subscribeClipVotes } from "@/lib/firebase/clips";
 import { useApp } from "@/lib/store";
 import { CommunityInsightsModal } from "@/components/product-feedback";
 import { getFirebaseAuth } from "@/lib/firebase/client";
-import type { Clip, CtaKind, Disclosure, Product } from "@/lib/types";
+import type { Clip, CtaKind, Creator, Disclosure, Product } from "@/lib/types";
 import { cn, formatCount, formatPrice } from "@/lib/utils";
 
 export function Feed() {
@@ -33,8 +33,8 @@ export function Feed() {
   const scroller = useRef<HTMLDivElement>(null);
 
   const products = useApp((s) => s.products);
-  const visible = clips.filter((c) => {
-    if (hidden.includes(c.id)) return false;
+  const allowed = clips.filter((c) => !hidden.includes(c.id) && isClipAllowedFor(c, user));
+  const visible = allowed.filter((c) => {
     if (feedMode === "discover") return true;
     if (
       c.province &&
@@ -54,7 +54,7 @@ export function Feed() {
     return true;
   });
 
-  const list = visible.length ? visible : clips.filter((c) => !hidden.includes(c.id));
+  const list = visible.length ? visible : allowed;
 
   useEffect(() => {
     const el = scroller.current;
@@ -83,11 +83,6 @@ export function Feed() {
     nodes.forEach((n) => io.observe(n));
     return () => io.disconnect();
   }, [list, setActiveClip]);
-
-  const activeClip = list.find((c) => c.id === activeClipId) ?? list[0];
-  const headerAuthor = useAuthor(activeClip?.authorId ?? "ana");
-  const following = useApp((s) => s.following);
-  const toggleFollow = useApp((s) => s.toggleFollow);
 
   return (
     <div className="relative h-full bg-black">
@@ -140,29 +135,6 @@ export function Feed() {
             </ModeChip>
           </div>
         </div>
-
-        {activeClip ? (
-          <div className="pointer-events-auto mt-2 flex w-max max-w-[240px] items-center gap-2 rounded-full border border-line bg-bg-elevated/80 py-1 pr-2 pl-1 backdrop-blur-md">
-            <img
-              src={headerAuthor.avatarUrl}
-              alt=""
-              className="size-8 rounded-full border-2 border-cyan object-cover"
-            />
-            <div className="truncate text-xs font-extrabold">@{headerAuthor.username}</div>
-            <button
-              type="button"
-              onClick={() => toggleFollow(headerAuthor.id)}
-              className={cn(
-                "rounded-[10px] px-2 py-1 text-[10px] font-extrabold",
-                following.includes(headerAuthor.id)
-                  ? "bg-fg/15 text-fg"
-                  : "bg-gradient-to-br from-cyan to-mint text-bg",
-              )}
-            >
-              {following.includes(headerAuthor.id) ? "Siguiendo" : "Seguir"}
-            </button>
-          </div>
-        ) : null}
       </div>
 
       <BottomNav />
@@ -519,7 +491,7 @@ function ClipSheets() {
         <WhySheet clip={clip} />
       </Sheet>
       <Sheet open={sheet === "product"} title="Ficha social" onClose={closeSheet}>
-        <ProductSheet clip={clip} disclosure={clip.disclosure} author={author.displayName} />
+        <ProductSheet clip={clip} disclosure={clip.disclosure} author={author} />
       </Sheet>
     </>
   );
@@ -953,22 +925,44 @@ function ProductSheet({
 }: {
   clip: Clip;
   disclosure: Disclosure;
-  author: string;
+  author: Creator;
 }) {
   const [insightsOpen, setInsightsOpen] = useState(false);
+  const following = useApp((s) => s.following);
+  const toggleFollow = useApp((s) => s.toggleFollow);
   const product = useProduct(clip.productId);
   const stats = clipStats(clip);
   return (
     <div className="space-y-3">
       <img src={product.imageUrl} alt="" className="h-36 w-full rounded-2xl object-cover" />
-      <div>
-        <h4 className="font-display text-lg font-bold">{product.name}</h4>
-        <p className="text-sm text-muted">
-          {product.brand} · {formatPrice(product.price, product.currency)}
-        </p>
-        <p className="mt-1 text-xs font-semibold text-cyan">
-          {author} · {DISCLOSURE_LABEL[disclosure]}
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h4 className="font-display text-lg font-bold">{product.name}</h4>
+          <p className="text-sm text-muted">
+            {product.brand} · {formatPrice(product.price, product.currency)}
+          </p>
+          <p className="mt-1 text-xs font-semibold text-cyan">{DISCLOSURE_LABEL[disclosure]}</p>
+        </div>
+        <div className="flex shrink-0 flex-col items-center gap-1">
+          <img
+            src={author.avatarUrl}
+            alt=""
+            className="size-12 rounded-full border-2 border-cyan object-cover"
+          />
+          <span className="max-w-[96px] truncate text-[11px] font-extrabold">@{author.username}</span>
+          <button
+            type="button"
+            onClick={() => toggleFollow(author.id)}
+            className={cn(
+              "rounded-[10px] px-2 py-1 text-[10px] font-extrabold",
+              following.includes(author.id)
+                ? "bg-fg/15 text-fg"
+                : "bg-gradient-to-br from-cyan to-mint text-bg",
+            )}
+          >
+            {following.includes(author.id) ? "Siguiendo" : "Seguir"}
+          </button>
+        </div>
       </div>
       <p className="text-sm text-muted">{product.description}</p>
       <div className="grid grid-cols-3 gap-2 text-center">

@@ -1,7 +1,7 @@
 import { remoteCreators } from "@/lib/creators-registry";
 import { CREATORS, PRODUCTS } from "@/lib/seed";
 import { useApp } from "@/lib/store";
-import type { Clip, Creator, Disclosure, Product } from "@/lib/types";
+import type { AgeRange, Clip, Creator, Disclosure, Product } from "@/lib/types";
 import { percent } from "@/lib/utils";
 
 export function creatorById(id: string) {
@@ -54,6 +54,18 @@ export function clipStats(clip: Clip) {
     adYesPct,
     adNoPct: adTotal ? 100 - adYesPct : 0,
   };
+}
+
+export const ADULT_AGE_RANGES: AgeRange[] = ["18-24", "25-34", "35-44", "45-54", "55+"];
+
+/** Los "me gusta" son los Sí a «¿Te gusta este anuncio?». */
+export function clipLikes(clip: Clip, liveYes = 0) {
+  return (clip.adYes ?? 0) + liveYes;
+}
+
+export function isClipAllowedFor(clip: Clip, viewer?: { id: string; ageRange: AgeRange } | null) {
+  if (!clip.ageRanges?.length || !viewer) return true;
+  return clip.authorId === viewer.id || clip.ageRanges.includes(viewer.ageRange);
 }
 
 export const DISCLOSURE_LABEL: Record<Disclosure, string> = {

@@ -21,7 +21,7 @@ import { saveMyProfile } from "@/lib/profile";
 import { COUNTRIES, DEFAULT_LOCATION, citiesOf, provincesOf } from "@/lib/locations";
 import type { AppUser } from "@/lib/auth/use-current-user";
 
-const AGES: AgeRange[] = ["18-24", "25-34", "35-44", "45-54", "55+"];
+const AGES: AgeRange[] = ["14-17", "18-24", "25-34", "35-44", "45-54", "55+"];
 const GENDERS: { id: Gender; label: string }[] = [
   { id: "woman", label: "Mujer" },
   { id: "man", label: "Hombre" },
@@ -170,6 +170,7 @@ export function Onboarding({ session }: { session?: AppUser | null }) {
           username: name,
           displayName: name,
           phone,
+          ageRange,
           bio: "Nuevo en ClipsApp",
           country,
           province,
