@@ -17,7 +17,8 @@ import { useApp } from "@/lib/store";
 import { CommunityInsightsModal } from "@/components/product-feedback";
 import { getFirebaseAuth } from "@/lib/firebase/client";
 import type { Clip, CtaKind, Creator, Disclosure, Product } from "@/lib/types";
-import { cn, formatCount, formatPrice } from "@/lib/utils";
+import { cn, formatCount, formatPrice, resolveAvatar } from "@/lib/utils";
+import { Photo } from "@/components/photo";
 
 export function Feed() {
   const clips = useApp((s) => s.clips);
@@ -90,6 +91,21 @@ export function Feed() {
         {list.map((clip) => (
           <ClipSlide key={clip.id} clip={clip} active={clip.id === activeClipId} />
         ))}
+        {list.length === 0 ? (
+          <div className="grid h-full place-items-center px-8 text-center">
+            <div>
+              <p className="font-display text-lg font-bold">Aún no hay clips</p>
+              <p className="mt-1 text-sm text-muted">Cuando alguien publique, aparecerá aquí.</p>
+              <button
+                type="button"
+                onClick={() => setTab("create")}
+                className="mt-4 rounded-full bg-gradient-to-br from-cyan to-mint px-5 py-2.5 text-sm font-extrabold text-bg"
+              >
+                Publicar el primero
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div className="pointer-events-none absolute inset-x-0 top-[calc(8px+env(safe-area-inset-top))] z-10 px-3">
@@ -115,7 +131,7 @@ export function Feed() {
                 className="flex max-w-[150px] items-center gap-1.5 rounded-full border border-line bg-bg-elevated/80 py-1 pr-3 pl-1 backdrop-blur-md"
               >
                 <img
-                  src={user.avatarUrl}
+                  src={resolveAvatar(user.avatarUrl, user.displayName)}
                   alt=""
                   className="size-8 shrink-0 rounded-full border-2 border-cyan object-cover"
                 />
@@ -196,9 +212,8 @@ function ClipSlide({ clip, active }: { clip: Clip; active: boolean }) {
           onClick={() => setPaused((p) => !p)}
         />
       ) : (
-        <img
+        <Photo
           src={clip.posterUrl}
-          alt=""
           className={cn("absolute inset-0 h-full w-full object-cover", active && "kenburns")}
           onClick={() => setPaused((p) => !p)}
         />
@@ -463,8 +478,8 @@ function ClipSheets() {
   const clips = useApp((s) => s.clips);
   const closeSheet = useApp((s) => s.closeSheet);
   const clip = clips.find((c) => c.id === clipId) ?? clips[0];
-  const product = useProduct(clip?.productId ?? "headphones");
-  const author = useAuthor(clip?.authorId ?? "ana");
+  const product = useProduct(clip?.productId ?? "");
+  const author = useAuthor(clip?.authorId ?? "");
   if (!clip) return null;
 
   return (
@@ -800,7 +815,7 @@ function DirectPurchasePanel({
   return (
     <div className="space-y-3">
       <div className="flex gap-3 rounded-xl border border-line bg-bg-elevated p-3">
-        <img src={product.imageUrl} alt="" className="size-20 shrink-0 rounded-lg object-cover" />
+        <Photo src={product.imageUrl} className="size-20 shrink-0 rounded-lg object-cover" />
         <div className="min-w-0 self-center">
           <p className="truncate text-sm font-bold">{product.name}</p>
           <p className="text-xs text-muted">{product.brand}</p>
@@ -934,7 +949,9 @@ function ProductSheet({
   const stats = clipStats(clip);
   return (
     <div className="space-y-3">
-      <img src={product.imageUrl} alt="" className="h-36 w-full rounded-2xl object-cover" />
+      {product.imageUrl ? (
+        <Photo src={product.imageUrl} className="h-36 w-full rounded-2xl object-cover" />
+      ) : null}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h4 className="font-display text-lg font-bold">{product.name}</h4>

@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { DEMO_USER, CLIPS, COMMENTS, PRODUCTS } from "@/lib/seed";
 import type {
   Clip,
   Comment,
@@ -152,9 +151,9 @@ const cloudSaves = new Map<string, Promise<void>>();
 
 const empty: Persisted = {
   user: null,
-  clips: CLIPS,
-  products: PRODUCTS,
-  comments: COMMENTS,
+  clips: [],
+  products: [],
+  comments: [],
   liked: [],
   saved: [],
   following: [],
@@ -174,7 +173,7 @@ export const useApp = create<AppState>((set, get) => ({
   clipVotes: {},
   tab: "home",
   feedMode: "for-you",
-  activeClipId: CLIPS[0]?.id ?? "c1",
+  activeClipId: "",
   sheet: null,
   sheetClipId: null,
   toast: null,
@@ -189,16 +188,9 @@ export const useApp = create<AppState>((set, get) => ({
         loaded = {
           ...empty,
           ...parsed,
-          clips: (parsed.clips?.length ? parsed.clips : CLIPS).map((c) => {
-            const seed = CLIPS.find((s) => s.id === c.id);
-            return {
-              ...c,
-              adYes: c.adYes ?? seed?.adYes ?? 24,
-              adNo: c.adNo ?? seed?.adNo ?? 16,
-            };
-          }),
-          products: parsed.products?.length ? parsed.products : PRODUCTS,
-          comments: parsed.comments?.length ? parsed.comments : COMMENTS,
+          clips: [],
+          products: [],
+          comments: (parsed.comments ?? []).filter((c) => isShared(c.clipId)),
           adLike: parsed.adLike ?? {},
         };
       }
@@ -222,17 +214,14 @@ export const useApp = create<AppState>((set, get) => ({
     }
 
     const base = {
-      clips: loaded.clips.filter((c) => !isShared(c.id)),
-      products: loaded.products.filter((p) => !isShared(p.id)),
+      clips: [] as Clip[],
+      products: [] as Product[],
     };
     set({
       ...loaded,
+      comments: loaded.comments.filter((c) => isShared(c.clipId)),
       clipVotes: {},
-      ...mergeRemote(
-        base.clips.length ? base.clips : CLIPS,
-        base.products.length ? base.products : PRODUCTS,
-        get().remote,
-      ),
+      ...mergeRemote(base.clips, base.products, get().remote),
       ready: true,
     });
   },
@@ -245,12 +234,8 @@ export const useApp = create<AppState>((set, get) => ({
     set((s) => ({ clipVotes: { ...s.clipVotes, [clipId]: summary } })),
 
   setSharedComments: (clipId, sharedComments) => {
-    const seeded = COMMENTS.filter((comment) => comment.clipId === clipId);
-    const comments = [
-      ...sharedComments,
-      ...seeded.filter((comment) => !sharedComments.some((entry) => entry.id === comment.id)),
-    ];
-    const count = sharedComments.length + seeded.length;
+    const comments = sharedComments;
+    const count = sharedComments.length;
     set((s) => ({
       comments: [...comments, ...s.comments.filter((comment) => comment.clipId !== clipId)],
       clips: s.clips.map((clip) => (clip.id === clipId ? { ...clip, comments: count } : clip)),
@@ -553,7 +538,7 @@ export const useApp = create<AppState>((set, get) => ({
         author: {
           username: user.username,
           displayName: user.displayName,
-          avatarUrl: avatar || "/avatars/user.jpg",
+          avatarUrl: avatar && !avatar.startsWith("/avatars/") ? avatar : "",
           role: user.role,
           city: user.city,
           stripeAccountId: user.stripeAccountId,
@@ -572,5 +557,3 @@ export const useApp = create<AppState>((set, get) => ({
     get().toastMsg("Clip publicado");
   },
 }));
-
-export { DEMO_USER };

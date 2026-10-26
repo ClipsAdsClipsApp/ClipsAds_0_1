@@ -1,11 +1,71 @@
 import {
+  collection,
   doc,
+  limit,
   onSnapshot,
+  query,
   runTransaction,
   serverTimestamp,
+  setDoc,
   type DocumentData,
 } from "firebase/firestore";
 import { getFirebaseAuth, getFirebaseFirestore } from "@/lib/firebase/client";
+
+export type ProductSurveySummary = {
+  boughtYes: number;
+  boughtNo: number;
+  ratingCount: number;
+  ratingAverage: number;
+  mine?: { bought: boolean; qualityPrice?: number };
+};
+
+export function subscribeProductSurveys(
+  productId: string,
+  onData: (summary: ProductSurveySummary) => void,
+  onError?: (error: Error) => void,
+): () => void {
+  const uid = getFirebaseAuth().currentUser?.uid;
+  return onSnapshot(
+    query(collection(getFirebaseFirestore(), "product-insights", productId, "surveys"), limit(1000)),
+    (snapshot) => {
+      const summary: ProductSurveySummary = { boughtYes: 0, boughtNo: 0, ratingCount: 0, ratingAverage: 0 };
+      let ratingSum = 0;
+      snapshot.forEach((entry) => {
+        const data = entry.data();
+        const quality = typeof data.qualityPrice === "number" ? data.qualityPrice : undefined;
+        if (data.bought === true) {
+          summary.boughtYes += 1;
+          if (quality && quality >= 1 && quality <= 5) {
+            summary.ratingCount += 1;
+            ratingSum += quality;
+          }
+        } else {
+          summary.boughtNo += 1;
+        }
+        if (entry.id === uid) summary.mine = { bought: data.bought === true, qualityPrice: quality };
+      });
+      summary.ratingAverage = summary.ratingCount ? ratingSum / summary.ratingCount : 0;
+      onData(summary);
+    },
+    (error) => onError?.(error),
+  );
+}
+
+export async function submitProductSurvey(
+  productId: string,
+  answer: { bought: boolean; qualityPrice?: number },
+): Promise<void> {
+  const uid = getFirebaseAuth().currentUser?.uid;
+  if (!uid) throw new Error("Inicia sesión para responder.");
+  const qualityPrice = answer.bought ? Math.min(5, Math.max(1, Math.round(answer.qualityPrice ?? 0))) : undefined;
+  if (answer.bought && !answer.qualityPrice) throw new Error("Elige una puntuación de calidad-precio.");
+  await setDoc(doc(getFirebaseFirestore(), "product-insights", productId, "surveys", uid), {
+    userId: uid,
+    bought: answer.bought,
+    ...(qualityPrice ? { qualityPrice } : {}),
+    updatedAt: serverTimestamp(),
+  });
+}
 
 export const PRODUCT_ADVANTAGES = [
   "Buena calidad",

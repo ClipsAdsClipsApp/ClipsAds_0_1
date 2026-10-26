@@ -1,15 +1,50 @@
 import { remoteCreators } from "@/lib/creators-registry";
-import { CREATORS, PRODUCTS } from "@/lib/seed";
 import { useApp } from "@/lib/store";
 import type { AgeRange, Clip, Creator, Disclosure, Product } from "@/lib/types";
-import { percent } from "@/lib/utils";
+import { percent, resolveAvatar } from "@/lib/utils";
+
+const EMPTY_PRODUCT: Product = {
+  id: "",
+  name: "Producto no disponible",
+  brand: "",
+  description: "",
+  price: 0,
+  currency: "EUR",
+  category: "tech",
+  city: "",
+  distanceKm: 0,
+  imageUrl: "",
+  cta: "buy",
+  ctaLabel: "Comprar",
+  fulfills: 0,
+  wouldBuy: 0,
+  verifiedOpinions: 0,
+  rating: 0,
+  pros: [],
+  cons: [],
+  faq: [],
+  alternatives: [],
+  where: [],
+};
 
 export function creatorById(id: string) {
-  return remoteCreators.get(id) ?? CREATORS.find((c) => c.id === id) ?? CREATORS[0];
+  const creator = remoteCreators.get(id);
+  return {
+    id,
+    username: creator?.username ?? "usuario",
+    displayName: creator?.displayName ?? "Usuario",
+    avatarUrl: resolveAvatar(creator?.avatarUrl, creator?.displayName ?? "Usuario"),
+    role: creator?.role ?? "user",
+    city: creator?.city ?? "",
+    bio: creator?.bio ?? "",
+    followers: creator?.followers ?? 0,
+    verified: creator?.verified ?? false,
+    stripeAccountId: creator?.stripeAccountId,
+  } satisfies Creator;
 }
 
 export function productById(id: string, extras: Product[] = []) {
-  return extras.find((p) => p.id === id) ?? PRODUCTS.find((p) => p.id === id) ?? PRODUCTS[0];
+  return extras.find((p) => p.id === id) ?? EMPTY_PRODUCT;
 }
 
 export function clipAuthor(id: string, me?: { id: string; username: string; displayName: string; avatarUrl: string; role: Creator["role"]; city: string } | null) {
@@ -18,7 +53,7 @@ export function clipAuthor(id: string, me?: { id: string; username: string; disp
       id,
       username: me.username,
       displayName: me.displayName,
-      avatarUrl: me.avatarUrl,
+      avatarUrl: resolveAvatar(me.avatarUrl, me.displayName),
       role: me.role,
       city: me.city,
       bio: "Tu cuenta",

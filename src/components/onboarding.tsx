@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { CATEGORIES } from "@/lib/seed";
+import { CATEGORIES } from "@/lib/categories";
 import { useApp } from "@/lib/store";
 import type { AgeRange, CategoryId, Gender, Role, UserProfile } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -175,7 +175,7 @@ export function Onboarding({ session }: { session?: AppUser | null }) {
           country,
           province,
           city,
-          avatarUrl: session?.profileImageUrl || "/avatars/user.jpg",
+          avatarUrl: session?.profileImageUrl || "",
           role,
         },
       });
@@ -185,7 +185,7 @@ export function Onboarding({ session }: { session?: AppUser | null }) {
         displayName: saved.displayName,
         email: email || session?.primaryEmail || `${name}@clips.app`,
         phone: saved.phone || "",
-        avatarUrl: saved.avatarUrl || "/avatars/user.jpg",
+        avatarUrl: saved.avatarUrl || "",
         role: saved.role as Role,
         bio: saved.bio,
         ageRange,

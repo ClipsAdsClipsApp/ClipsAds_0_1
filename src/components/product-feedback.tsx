@@ -5,8 +5,11 @@ import {
   PRODUCT_ADVANTAGES,
   PRODUCT_ISSUES,
   submitProductFeedback,
+  submitProductSurvey,
   subscribeProductInsights,
+  subscribeProductSurveys,
   type ProductInsightSummary,
+  type ProductSurveySummary,
 } from "@/lib/firebase/product-insights";
 import { cn } from "@/lib/utils";
 
@@ -186,8 +189,19 @@ export function CommunityInsightsModal({
   onClose: () => void;
 }) {
   const [summary, setSummary] = useState<ProductInsightSummary>(() => emptyProductInsight(productId));
+  const [survey, setSurvey] = useState<ProductSurveySummary>({
+    boughtYes: 0,
+    boughtNo: 0,
+    ratingCount: 0,
+    ratingAverage: 0,
+  });
   const [loading, setLoading] = useState(open);
   const [error, setError] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    return subscribeProductSurveys(productId, setSurvey);
+  }, [open, productId]);
 
   useEffect(() => {
     if (!open) return;
@@ -243,6 +257,8 @@ export function CommunityInsightsModal({
           </button>
         </div>
 
+        <CommunitySurvey productId={productId} survey={survey} />
+
         {loading ? (
           <div className="grid min-h-40 place-items-center text-sm text-muted">Cargando opiniones…</div>
         ) : error ? (
@@ -250,9 +266,7 @@ export function CommunityInsightsModal({
             No se pudieron cargar las opiniones de la comunidad.
           </p>
         ) : summary.totalFeedback === 0 ? (
-          <p className="py-8 text-center text-sm text-muted">
-            Aún no hay opiniones de compras confirmadas para este producto.
-          </p>
+          null
         ) : (
           <>
             <p className="mb-4 text-xs text-muted">
@@ -274,6 +288,163 @@ export function CommunityInsightsModal({
         )}
       </section>
     </div>
+  );
+}
+
+function CommunitySurvey({
+  productId,
+  survey,
+}: {
+  productId: string;
+  survey: ProductSurveySummary;
+}) {
+  const [bought, setBought] = useState<boolean | null>(null);
+  const [rating, setRating] = useState(0);
+  const [advantages, setAdvantages] = useState<string[]>([]);
+  const [issues, setIssues] = useState<string[]>([]);
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const answered = Boolean(survey.mine) && !editing;
+  const buyers = survey.boughtYes;
+  const total = survey.boughtYes + survey.boughtNo;
+
+  function toggle(label: string, selected: string[], update: (next: string[]) => void) {
+    update(selected.includes(label) ? selected.filter((item) => item !== label) : [...selected, label]);
+  }
+
+  async function answerNo() {
+    setBought(false);
+    setBusy(true);
+    setError(null);
+    try {
+      await submitProductSurvey(productId, { bought: false });
+      setEditing(false);
+      setBought(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudo guardar tu respuesta.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitYes() {
+    setBusy(true);
+    setError(null);
+    try {
+      await submitProductSurvey(productId, { bought: true, qualityPrice: rating });
+      if (advantages.length || issues.length) {
+        await submitProductFeedback(productId, { advantages, issues }).catch(() => {
+          setError("Guardamos tu puntuación, pero no las ventajas. Inténtalo de nuevo más tarde.");
+        });
+      }
+      setEditing(false);
+      setBought(null);
+      setRating(0);
+      setAdvantages([]);
+      setIssues([]);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudo guardar tu respuesta.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="mb-5 rounded-2xl border border-line bg-bg-elevated p-3">
+      {answered ? (
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs text-muted">
+            Tu respuesta:{" "}
+            <b className="text-fg">
+              {survey.mine?.bought ? `lo compraste · calidad-precio ${survey.mine.qualityPrice ?? "-"}/5` : "no lo compraste"}
+            </b>
+          </p>
+          <button type="button" onClick={() => setEditing(true)} className="shrink-0 text-xs font-bold text-cyan">
+            Cambiar
+          </button>
+        </div>
+      ) : (
+        <>
+          <p className="mb-2 text-xs font-bold">¿Lo compraste?</p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              aria-pressed={bought === true}
+              onClick={() => setBought(true)}
+              className={cn(
+                "flex-1 rounded-full border py-2 text-sm font-bold",
+                bought === true ? "border-mint bg-mint text-bg" : "border-line bg-surface",
+              )}
+            >
+              Sí
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              aria-pressed={bought === false}
+              onClick={() => void answerNo()}
+              className={cn(
+                "flex-1 rounded-full border py-2 text-sm font-bold",
+                bought === false ? "border-mint bg-mint text-bg" : "border-line bg-surface",
+              )}
+            >
+              No
+            </button>
+          </div>
+          {bought === true ? (
+            <div className="mt-4">
+              <p className="mb-2 text-xs font-bold">¿Calidad-precio? (1 a 5)</p>
+              <div className="mb-4 flex gap-2">
+                {[1, 2, 3, 4, 5].map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={rating === value}
+                    onClick={() => setRating(value)}
+                    className={cn(
+                      "size-10 rounded-full border text-sm font-extrabold",
+                      rating === value ? "border-mint bg-mint text-bg" : "border-line bg-surface",
+                    )}
+                  >
+                    {value}
+                  </button>
+                ))}
+              </div>
+              <FeedbackChips
+                title="¿Qué destacarías? (opcional)"
+                labels={PRODUCT_ADVANTAGES}
+                selected={advantages}
+                onToggle={(label) => toggle(label, advantages, setAdvantages)}
+              />
+              <FeedbackChips
+                title="Detalles a mejorar (opcional)"
+                labels={PRODUCT_ISSUES}
+                selected={issues}
+                onToggle={(label) => toggle(label, issues, setIssues)}
+                issue
+              />
+              <button
+                type="button"
+                disabled={busy || rating === 0}
+                onClick={() => void submitYes()}
+                className="w-full rounded-xl bg-gradient-to-br from-mint to-cyan py-2.5 text-sm font-extrabold text-bg disabled:opacity-45"
+              >
+                {busy ? "Guardando…" : "Enviar"}
+              </button>
+            </div>
+          ) : null}
+        </>
+      )}
+      {error ? <p role="alert" className="mt-2 text-xs text-danger">{error}</p> : null}
+      {total > 0 ? (
+        <p className="mt-3 border-t border-line pt-2 text-[11px] text-muted">
+          {buyers} de {total} lo compraron
+          {survey.ratingCount ? ` · calidad-precio ${survey.ratingAverage.toFixed(1)}/5 (${survey.ratingCount})` : ""}
+        </p>
+      ) : null}
+    </section>
   );
 }
 

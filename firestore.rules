@@ -143,6 +143,22 @@ service cloud.firestore {
           && request.resource.data.updatedAt is timestamp;
         allow delete: if false;
       }
+
+      match /surveys/{userId} {
+        allow read: if true;
+        allow create, update: if request.auth != null
+          && request.auth.uid == userId
+          && request.resource.data.keys().hasOnly(["userId", "bought", "qualityPrice", "updatedAt"])
+          && request.resource.data.userId == userId
+          && request.resource.data.bought is bool
+          && (request.resource.data.bought == false
+            ? !request.resource.data.keys().hasAny(["qualityPrice"])
+            : request.resource.data.qualityPrice is int
+              && request.resource.data.qualityPrice >= 1
+              && request.resource.data.qualityPrice <= 5)
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if false;
+      }
     }
 
     // Clips compartidos: lectura publica, escritura solo del autor.

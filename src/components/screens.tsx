@@ -4,18 +4,18 @@ import { CreditCard, ExternalLink, LoaderCircle, Trash2 } from "lucide-react";
 import { BottomNav, OptionButton } from "@/components/chrome";
 import {
   IconChart,
-  IconCheck,
   IconLogout,
   IconPin,
   IconSearch,
   IconShield,
-  IconStar,
 } from "@/components/icons";
-import { ADULT_AGE_RANGES, clipLikes, clipStats, creatorById, DISCLOSURE_LABEL, productById } from "@/lib/catalog";
-import { CATEGORIES, CREATORS, REVIEWS } from "@/lib/seed";
+import { ADULT_AGE_RANGES, clipLikes, clipStats, creatorById, DISCLOSURE_LABEL, isClipAllowedFor, productById } from "@/lib/catalog";
+import { CATEGORIES } from "@/lib/categories";
+import { remoteCreators } from "@/lib/creators-registry";
+import { Photo } from "@/components/photo";
 import { useApp } from "@/lib/store";
 import type { AgeRange, CategoryId, Clip, CtaKind, Disclosure, PurchaseMode, UserProfile } from "@/lib/types";
-import { cn, formatCount, formatPrice } from "@/lib/utils";
+import { cn, formatCount, formatPrice, resolveAvatar } from "@/lib/utils";
 import { UserButton } from "@/lib/auth/gates";
 import { openCookieSettings } from "@/components/cookie-consent";
 import { changePassword, signOut } from "@/lib/firebase/auth";
@@ -30,11 +30,13 @@ export function Explore() {
   const user = useApp((s) => s.user);
   const setTab = useApp((s) => s.setTab);
   const setActiveClip = useApp((s) => s.setActiveClip);
+  useApp((s) => s.remote);
+  const creators = [...remoteCreators.values()];
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<CategoryId | "all">("all");
 
   const list = clips.filter((c) => {
-    if (hidden.includes(c.id)) return false;
+    if (hidden.includes(c.id) || !isClipAllowedFor(c, user)) return false;
     const p = productById(c.productId, products);
     const a = creatorById(c.authorId);
     if (cat !== "all" && p.category !== cat) return false;
@@ -86,7 +88,7 @@ export function Explore() {
                 }
               }}
             >
-              <img src={p.imageUrl} alt="" className="size-16 rounded-xl object-cover" />
+              <Photo src={p.imageUrl} className="size-16 rounded-xl object-cover" />
               <div className="min-w-0">
                 <div className="truncate text-sm font-bold">{p.name}</div>
                 <div className="text-xs text-muted">
@@ -112,16 +114,19 @@ export function Explore() {
             />
           ))}
         </div>
-        <h2 className="mb-2 mt-5 text-sm font-bold">Creadores</h2>
-        <div className="scrollbar-none flex gap-3 overflow-x-auto pb-2">
-          {CREATORS.map((c) => (
-            <div key={c.id} className="w-28 shrink-0 rounded-2xl border border-line bg-surface p-2 text-center">
-              <img src={c.avatarUrl} alt="" className="mx-auto size-12 rounded-full object-cover" />
-              <div className="mt-1 truncate text-xs font-bold">@{c.username}</div>
-              <div className="text-[10px] text-muted">{formatCount(c.followers)}</div>
+        {creators.length ? (
+          <>
+            <h2 className="mb-2 mt-5 text-sm font-bold">Creadores</h2>
+            <div className="scrollbar-none flex gap-3 overflow-x-auto pb-2">
+              {creators.map((c) => (
+                <div key={c.id} className="w-28 shrink-0 rounded-2xl border border-line bg-surface p-2 text-center">
+                  <img src={resolveAvatar(c.avatarUrl, c.displayName)} alt="" className="mx-auto size-12 rounded-full object-cover" />
+                  <div className="mt-1 truncate text-xs font-bold">@{c.username}</div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </>
+        ) : null}
       </div>
       <BottomNav />
     </div>
@@ -156,7 +161,7 @@ function ClipThumb({ clip, fallback, className }: { clip: Clip; fallback?: strin
     return (
       <video
         src={`${clip.videoUrl}#t=0.1`}
-        poster={clip.posterUrl.startsWith("data:") ? clip.posterUrl : undefined}
+        poster={clip.posterUrl?.startsWith("data:") ? clip.posterUrl : undefined}
         preload="metadata"
         muted
         playsInline
@@ -164,7 +169,53 @@ function ClipThumb({ clip, fallback, className }: { clip: Clip; fallback?: strin
       />
     );
   }
-  return <img src={clip.posterUrl || fallback} alt="" className={className} />;
+  return <Photo src={clip.posterUrl || fallback} className={className} />;
+}
+
+function resizeImage(file: File, maxSide = 800): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return reject(new Error("No se pudo procesar la imagen."));
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL("image/jpeg", 0.8));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("No se pudo leer la imagen."));
+    };
+    img.src = url;
+  });
+}
+
+function resizeImage(file: File, maxSide = 800): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return reject(new Error("No se pudo procesar la imagen."));
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL("image/jpeg", 0.8));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("No se pudo leer la imagen."));
+    };
+    img.src = url;
+  });
 }
 
 function captureFrame(url: string): Promise<string | undefined> {
@@ -229,6 +280,8 @@ export function CreateClip() {
   const [fileUrl, setFileUrl] = useState<string>();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [posterUrl, setPosterUrl] = useState<string>();
+  const [photoUrl, setPhotoUrl] = useState<string>();
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -322,7 +375,7 @@ export function CreateClip() {
         {
           id,
           videoUrl: blob.url,
-          posterUrl: posterUrl ?? "/images/headphones.jpg",
+          posterUrl: posterUrl ?? photoUrl ?? "",
           caption: caption || name,
           authorId: firebaseUser.uid,
           productId: id,
@@ -351,7 +404,7 @@ export function CreateClip() {
           price: parsed,
           currency: "EUR",
           category,
-          imageUrl: posterUrl ?? "/images/headphones.jpg",
+          imageUrl: photoUrl ?? posterUrl ?? "",
           city: user?.city ?? "Parla",
           distanceKm: 0.4,
           cta,
@@ -428,6 +481,45 @@ export function CreateClip() {
           </p>
         ) : null}
         <Field label="Producto" value={name} onChange={setName} placeholder="Nombre del producto" />
+        <div className="mb-3">
+          <span className="mb-1 block text-xs font-bold text-muted">Foto de la ficha social (opcional)</span>
+          <div className="flex items-center gap-3">
+            <label className="flex h-20 w-20 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-dashed border-cyan/40 bg-surface text-center text-[10px] font-semibold text-muted">
+              {photoUrl ? (
+                <img src={photoUrl} alt="Foto de la ficha" className="h-full w-full object-cover" />
+              ) : (
+                "Subir foto"
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!file) return;
+                  setPhotoError(null);
+                  if (!file.type.startsWith("image/") || file.size > 15 * 1024 * 1024) {
+                    setPhotoError("Elige una imagen de hasta 15 MB.");
+                    return;
+                  }
+                  resizeImage(file).then(setPhotoUrl, (error: unknown) =>
+                    setPhotoError(error instanceof Error ? error.message : "No se pudo cargar la foto."),
+                  );
+                }}
+              />
+            </label>
+            <div className="min-w-0 text-[11px] text-subtle">
+              <p>Se mostrará en la ficha del producto. Si no subes una, no habrá foto.</p>
+              {photoUrl ? (
+                <button type="button" onClick={() => setPhotoUrl(undefined)} className="mt-1 font-bold text-cyan">
+                  Quitar foto
+                </button>
+              ) : null}
+            </div>
+          </div>
+          {photoError ? <p role="alert" className="mt-1 text-xs text-danger">{photoError}</p> : null}
+        </div>
         <Field label="Marca o comercio" value={brand} onChange={setBrand} placeholder="SoundTech" />
         <Field label="Precio" value={price} onChange={setPrice} placeholder="19.90" />
         <Field label="Descripción del clip" value={caption} onChange={setCaption} placeholder="Qué has comprobado" />
@@ -852,7 +944,7 @@ export function Profile() {
             className="relative"
             onClick={() => fileRef.current?.click()}
           >
-            <img src={user.avatarUrl} alt="" className="size-16 rounded-full border-2 border-cyan object-cover" />
+            <img src={resolveAvatar(user.avatarUrl, user.displayName)} alt="" className="size-16 rounded-full border-2 border-cyan object-cover" />
             <span className="absolute -bottom-1 -right-1 rounded-full bg-cyan px-1.5 py-0.5 text-[9px] font-extrabold text-bg">
               Foto
             </span>
@@ -1110,27 +1202,6 @@ function BusinessPanel() {
       <p className="mt-4 text-xs text-muted">
         Las empresas no pueden borrar críticas legítimas. Solo responder.
       </p>
-      {REVIEWS.slice(0, 2).map((r) => (
-        <div key={r.id} className="mt-2 rounded-2xl border border-line bg-surface p-3">
-          <div className="flex items-center gap-1 text-mint">
-            {Array.from({ length: r.rating }).map((_, i) => (
-              <IconStar key={i} size={12} filled />
-            ))}
-            {r.verified ? (
-              <span className="ml-2 flex items-center gap-1 text-[10px] font-bold text-cyan">
-                <IconCheck size={12} /> verificada
-              </span>
-            ) : null}
-          </div>
-          <p className="mt-1 text-sm">{r.text}</p>
-          <OptionButton
-            variant="ghost"
-            onClick={() => useApp.getState().toastMsg("Respuesta enviada (demo)")}
-          >
-            Responder
-          </OptionButton>
-        </div>
-      ))}
     </div>
   );
 }

@@ -110,7 +110,7 @@ export function ClipsApp() {
     void syncSharedAuthor(authorId, {
       username: authorUsername,
       displayName: authorDisplayName,
-      avatarUrl: authorAvatarUrl || "/avatars/user.jpg",
+      avatarUrl: authorAvatarUrl && !authorAvatarUrl.startsWith("/avatars/") ? authorAvatarUrl : "",
       role: authorRole,
       city: authorCity,
       stripeAccountId: authorStripeAccountId,
@@ -142,7 +142,8 @@ export function ClipsApp() {
             displayName: p.displayName,
             email: session.primaryEmail || "",
             phone: p.phone || "",
-            avatarUrl: p.avatarUrl || session.profileImageUrl || "/avatars/user.jpg",
+            avatarUrl:
+              (p.avatarUrl && !p.avatarUrl.startsWith("/avatars/") ? p.avatarUrl : session.profileImageUrl) || "",
             role: (p.role as Role) || "user",
             bio: p.bio,
             ageRange: (p.ageRange as AgeRange) || "25-34",
