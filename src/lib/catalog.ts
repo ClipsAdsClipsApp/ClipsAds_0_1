@@ -27,7 +27,7 @@ const EMPTY_PRODUCT: Product = {
   where: [],
 };
 
-export function creatorById(id: string) {
+export function creatorById(id: string): Creator {
   const creator = remoteCreators.get(id);
   return {
     id,
