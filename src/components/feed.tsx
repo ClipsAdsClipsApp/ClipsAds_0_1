@@ -12,7 +12,7 @@ import {
 } from "@/components/icons";
 import { clipStats, DISCLOSURE_HINT, DISCLOSURE_LABEL, isClipAllowedFor, productById, useAuthor, useProduct } from "@/lib/catalog";
 import { firebaseConfigured } from "@/lib/firebase/client";
-import { subscribeClipComments, subscribeClipVotes } from "@/lib/firebase/clips";
+import { subscribeClipComments, subscribeClipCounts, subscribeClipVotes } from "@/lib/firebase/clips";
 import { useApp } from "@/lib/store";
 import { CommunityInsightsModal } from "@/components/product-feedback";
 import { getFirebaseAuth } from "@/lib/firebase/client";
@@ -239,6 +239,8 @@ function ClipOverlay({ clip, active }: { clip: Clip; active: boolean }) {
   const userId = useApp((s) => s.user?.id);
   const clipVotes = useApp((s) => s.clipVotes[clip.id]);
   const setClipVotes = useApp((s) => s.setClipVotes);
+  const clipCounts = useApp((s) => s.clipCounts[clip.id]);
+  const setClipCounts = useApp((s) => s.setClipCounts);
   const product = useProduct(clip.productId);
   const saved = useApp((s) => s.saved);
   const toggleSave = useApp((s) => s.toggleSave);
@@ -269,6 +271,17 @@ function ClipOverlay({ clip, active }: { clip: Clip; active: boolean }) {
   const usedNo = myUsed === "no";
 
   useEffect(() => {
+    if (!active || !firebaseConfigured) return;
+    return subscribeClipCounts(
+      clip.id,
+      (counts) => setClipCounts(clip.id, counts),
+      (error) => {
+        console.error("[firebase] Could not load clip counters.", error);
+      },
+    );
+  }, [active, clip.id, setClipCounts]);
+
+  useEffect(() => {
     if (!active || !userId || !firebaseConfigured) return;
     return subscribeClipVotes(
       clip.id,
@@ -285,20 +298,20 @@ function ClipOverlay({ clip, active }: { clip: Clip; active: boolean }) {
       <div className="absolute right-1.5 bottom-[230px] z-10 flex flex-col items-center gap-1.5">
         <Action
           name="Comentarios"
-          label={formatCount(clip.comments)}
+          label={formatCount(clipCounts?.comments ?? clip.comments)}
           onClick={() => openSheet("comments", clip.id)}
         >
           <BrandActionIcon kind="comment" label="Comentarios" />
         </Action>
         <Action
           name="Guardar"
-          label={formatCount(clip.saves)}
+          label={formatCount(clipCounts?.saves ?? clip.saves)}
           active={isSaved}
           onClick={() => toggleSave(clip.id)}
         >
           <BrandActionIcon kind="save" active={isSaved} label="Guardar" />
         </Action>
-        <Action name="Compartir" label={formatCount(clip.shares)} onClick={() => void shareClip(clip.id)}>
+        <Action name="Compartir" label={formatCount(clipCounts?.shares ?? clip.shares)} onClick={() => void shareClip(clip.id)}>
           <BrandActionIcon kind="share" label="Compartir" />
         </Action>
         <Action name="Más opciones" label="" onClick={() => openSheet("more", clip.id)}>

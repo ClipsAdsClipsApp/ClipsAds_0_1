@@ -16,6 +16,9 @@ import {
   publishSharedClip,
   saveClipVote,
   type ClipVoteSummary,
+  type ClipCounts,
+  recordClipShare,
+  setClipSaved,
   type SharedClipDoc,
 } from "@/lib/firebase/clips";
 import { remoteCreators } from "@/lib/creators-registry";
@@ -79,6 +82,8 @@ interface AppState extends Persisted {
   setSigningOut: (value: boolean) => void;
   remote: SharedClipDoc[];
   clipVotes: Record<string, ClipVoteSummary>;
+  clipCounts: Record<string, ClipCounts>;
+  setClipCounts: (clipId: string, counts: ClipCounts) => void;
   setRemote: (docs: SharedClipDoc[]) => void;
   setClipVotes: (clipId: string, summary: ClipVoteSummary) => void;
   setSharedComments: (clipId: string, comments: Comment[]) => void;
@@ -171,6 +176,9 @@ export const useApp = create<AppState>((set, get) => ({
   setSigningOut: (signingOut) => set({ signingOut }),
   remote: [],
   clipVotes: {},
+  clipCounts: {},
+  setClipCounts: (clipId, counts) =>
+    set((s) => ({ clipCounts: { ...s.clipCounts, [clipId]: counts } })),
   tab: "home",
   feedMode: "for-you",
   activeClipId: "",
@@ -302,6 +310,17 @@ export const useApp = create<AppState>((set, get) => ({
     const clips = get().clips.map((c) =>
       c.id === clipId ? { ...c, saves: c.saves + (on ? -1 : 1) } : c,
     );
+    const user = get().user;
+    if (firebaseConfigured && user) {
+      set({ saved: [...saved] });
+      get().persist();
+      void setClipSaved(clipId, user.id, !on).catch((error: unknown) => {
+        console.error("[firebase] Could not save clip.", error);
+        get().toastMsg("No se pudo actualizar guardados");
+      });
+      get().toastMsg(on ? "Quitado de guardados" : "Clip guardado");
+      return;
+    }
     set({ saved: [...saved], clips });
     get().persist();
     get().toastMsg(on ? "Quitado de guardados" : "Clip guardado");
@@ -498,10 +517,16 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   shareClip: async (clipId) => {
-    const clips = get().clips.map((c) =>
-      c.id === clipId ? { ...c, shares: c.shares + 1 } : c,
-    );
-    set({ clips });
+    const user = get().user;
+    if (firebaseConfigured && user) {
+      void recordClipShare(clipId, user.id).catch((error: unknown) => {
+        console.error("[firebase] Could not record share.", error);
+      });
+    } else {
+      set({
+        clips: get().clips.map((c) => (c.id === clipId ? { ...c, shares: c.shares + 1 } : c)),
+      });
+    }
     get().persist();
     try {
       if (navigator.share) {

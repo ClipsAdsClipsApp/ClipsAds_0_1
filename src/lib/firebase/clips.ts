@@ -1,6 +1,7 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -35,6 +36,40 @@ export type ClipVoteSummary = {
 };
 
 export type SharedComment = Comment & { authorId: string };
+
+export type ClipCounts = { comments: number; saves: number; shares: number };
+
+export function subscribeClipCounts(
+  clipId: string,
+  onData: (counts: ClipCounts) => void,
+  onError?: (error: Error) => void,
+): () => void {
+  const db = getFirebaseFirestore();
+  const counts: ClipCounts = { comments: 0, saves: 0, shares: 0 };
+  const watch = (name: keyof ClipCounts) =>
+    onSnapshot(
+      query(collection(db, "clips", clipId, name), limit(10000)),
+      (snap) => {
+        counts[name] = snap.size;
+        onData({ ...counts });
+      },
+      (error) => onError?.(error),
+    );
+  const stops = [watch("comments"), watch("saves"), watch("shares")];
+  return () => stops.forEach((stop) => stop());
+}
+
+export function setClipSaved(clipId: string, userId: string, saved: boolean): Promise<void> {
+  const ref = doc(getFirebaseFirestore(), "clips", clipId, "saves", userId);
+  return saved ? setDoc(ref, { userId, updatedAt: serverTimestamp() }) : deleteDoc(ref);
+}
+
+export function recordClipShare(clipId: string, userId: string): Promise<void> {
+  return setDoc(doc(getFirebaseFirestore(), "clips", clipId, "shares", userId), {
+    userId,
+    updatedAt: serverTimestamp(),
+  });
+}
 
 export type SharedAuthor = SharedClipDoc["author"];
 
@@ -180,12 +215,16 @@ async function deleteClipDocuments(clipRefs: DocumentReference[]): Promise<void>
   const db = getFirebaseFirestore();
   const allRefs: DocumentReference[] = [];
   for (const clipRef of clipRefs) {
-    const [comments, votes] = await Promise.all([
+    const [comments, votes, saves, shares] = await Promise.all([
       getDocs(collection(db, "clips", clipRef.id, "comments")),
       getDocs(collection(db, "clips", clipRef.id, "votes")),
+      getDocs(collection(db, "clips", clipRef.id, "saves")),
+      getDocs(collection(db, "clips", clipRef.id, "shares")),
     ]);
     allRefs.push(...comments.docs.map((entry) => entry.ref));
     allRefs.push(...votes.docs.map((entry) => entry.ref));
+    allRefs.push(...saves.docs.map((entry) => entry.ref));
+    allRefs.push(...shares.docs.map((entry) => entry.ref));
     allRefs.push(clipRef);
   }
   for (let start = 0; start < allRefs.length; start += 450) {

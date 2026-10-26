@@ -199,6 +199,26 @@ service cloud.firestore {
         allow delete: if request.auth != null
           && (request.auth.uid == userId || ownsClip(clipId));
       }
+
+      match /saves/{userId} {
+        allow read: if true;
+        allow create, update: if request.auth != null
+          && request.auth.uid == userId
+          && request.resource.data.keys().hasOnly(["userId", "updatedAt"])
+          && request.resource.data.userId == userId;
+        allow delete: if request.auth != null
+          && (request.auth.uid == userId || ownsClip(clipId));
+      }
+
+      match /shares/{userId} {
+        allow read: if true;
+        allow create, update: if request.auth != null
+          && request.auth.uid == userId
+          && request.resource.data.keys().hasOnly(["userId", "updatedAt"])
+          && request.resource.data.userId == userId;
+        allow delete: if request.auth != null
+          && (request.auth.uid == userId || ownsClip(clipId));
+      }
     }
   }
 }
