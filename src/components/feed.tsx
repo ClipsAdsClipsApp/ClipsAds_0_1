@@ -112,13 +112,32 @@ export function Feed() {
             >
               <IconSound muted={!soundOn} size={18} />
             </button>
-            <button
-              type="button"
-              onClick={() => setTab("create")}
-              className="rounded-full bg-gradient-to-br from-cyan to-mint px-3 py-2 text-[11px] font-extrabold text-bg"
-            >
-              + Subir Clip
-            </button>
+            {user ? (
+              <button
+                type="button"
+                onClick={() => setTab("profile")}
+                aria-label="Abrir mi perfil"
+                className="flex max-w-[150px] items-center gap-1.5 rounded-full border border-line bg-bg-elevated/80 py-1 pr-3 pl-1 backdrop-blur-md"
+              >
+                <img
+                  src={user.avatarUrl}
+                  alt=""
+                  className="size-8 shrink-0 rounded-full border-2 border-cyan object-cover"
+                />
+                <span className="truncate text-xs font-extrabold">@{user.username}</span>
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="pointer-events-auto mt-1 flex justify-center">
+          <div className="flex gap-1 rounded-full bg-black/35 p-1 backdrop-blur-md">
+            <ModeChip on={feedMode === "for-you"} onClick={() => setFeedMode("for-you")}>
+              Para ti
+            </ModeChip>
+            <ModeChip on={feedMode === "discover"} onClick={() => setFeedMode("discover")}>
+              Descubre
+            </ModeChip>
           </div>
         </div>
 
@@ -144,17 +163,6 @@ export function Feed() {
             </button>
           </div>
         ) : null}
-
-        <div className="pointer-events-auto mt-2 flex justify-center">
-          <div className="flex gap-1 rounded-full bg-black/35 p-1 backdrop-blur-md">
-            <ModeChip on={feedMode === "for-you"} onClick={() => setFeedMode("for-you")}>
-              Para ti
-            </ModeChip>
-            <ModeChip on={feedMode === "discover"} onClick={() => setFeedMode("discover")}>
-              Descubre
-            </ModeChip>
-          </div>
-        </div>
       </div>
 
       <BottomNav />

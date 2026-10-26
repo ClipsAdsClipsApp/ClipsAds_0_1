@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { PhoneFrame, ToastHost } from "@/components/chrome";
+import { CookieConsent } from "@/components/cookie-consent";
 import { Feed } from "@/components/feed";
 import { Onboarding } from "@/components/onboarding";
 import { CreateClip, Explore, Library, Profile } from "@/components/screens";
@@ -191,6 +192,7 @@ export function ClipsApp() {
         />
       ) : null}
       <ToastHost />
+      <CookieConsent />
     </PhoneFrame>
   );
 }

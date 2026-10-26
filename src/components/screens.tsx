@@ -17,6 +17,7 @@ import { useApp } from "@/lib/store";
 import type { CategoryId, Clip, CtaKind, Disclosure, PurchaseMode, UserProfile } from "@/lib/types";
 import { cn, formatCount, formatPrice } from "@/lib/utils";
 import { UserButton } from "@/lib/auth/gates";
+import { openCookieSettings } from "@/components/cookie-consent";
 import { changePassword, signOut } from "@/lib/firebase/auth";
 import { firebaseConfigured, getFirebaseAuth } from "@/lib/firebase/client";
 import { subscribeMySharedClips } from "@/lib/firebase/clips";
@@ -913,6 +914,13 @@ export function Profile() {
               on={user.approximateLocation}
               onToggle={() => updateUser({ approximateLocation: !user.approximateLocation })}
             />
+            <button
+              type="button"
+              onClick={openCookieSettings}
+              className="mt-4 flex w-full items-center justify-between rounded-[14px] border border-line bg-surface px-3 py-3 text-left text-sm font-bold"
+            >
+              Preferencias de cookies
+            </button>
             <button
               type="button"
               aria-expanded={passwordPanelOpen}
