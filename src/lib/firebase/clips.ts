@@ -42,7 +42,14 @@ export type ClipVoteSummary = {
 
 export type SharedComment = Comment & { authorId: string };
 
-export type ClipCounts = { comments: number; saves: number; shares: number };
+export type ClipCounts = {
+  comments: number;
+  saves: number;
+  shares: number;
+  views: number;
+  detailViews: number;
+  conversionClicks: number;
+};
 
 export function subscribeClipCounts(
   clipId: string,
@@ -50,7 +57,14 @@ export function subscribeClipCounts(
   onError?: (error: Error) => void,
 ): () => void {
   const db = getFirebaseFirestore();
-  const counts: ClipCounts = { comments: 0, saves: 0, shares: 0 };
+  const counts: ClipCounts = {
+    comments: 0,
+    saves: 0,
+    shares: 0,
+    views: 0,
+    detailViews: 0,
+    conversionClicks: 0,
+  };
   const watch = (name: keyof ClipCounts) =>
     onSnapshot(
       query(collection(db, "clips", clipId, name), limit(10000)),
@@ -67,6 +81,17 @@ export function subscribeClipCounts(
 export function setClipSaved(clipId: string, userId: string, saved: boolean): Promise<void> {
   const ref = doc(getFirebaseFirestore(), "clips", clipId, "saves", userId);
   return saved ? setDoc(ref, { userId, updatedAt: serverTimestamp() }) : deleteDoc(ref);
+}
+
+export function recordClipEvent(
+  clipId: string,
+  event: "views" | "detailViews" | "conversionClicks",
+  userId: string,
+): Promise<void> {
+  return addDoc(collection(getFirebaseFirestore(), "clips", clipId, event), {
+    userId,
+    createdAt: serverTimestamp(),
+  }).then(() => undefined);
 }
 
 export function recordClipShare(clipId: string, userId: string): Promise<void> {
@@ -234,13 +259,16 @@ export async function deleteAllSharedClips(authorId: string): Promise<void> {
 async function deleteClipDocuments(clipRefs: DocumentReference[]): Promise<void> {
   const db = getFirebaseFirestore();
   for (const clipRef of clipRefs) {
-    const [comments, votes, saves, shares] = await Promise.all([
+    const [comments, votes, saves, shares, views, detailViews, conversionClicks] = await Promise.all([
       getDocs(collection(db, "clips", clipRef.id, "comments")),
       getDocs(collection(db, "clips", clipRef.id, "votes")),
       getDocs(collection(db, "clips", clipRef.id, "saves")),
       getDocs(collection(db, "clips", clipRef.id, "shares")),
+      getDocs(collection(db, "clips", clipRef.id, "views")),
+      getDocs(collection(db, "clips", clipRef.id, "detailViews")),
+      getDocs(collection(db, "clips", clipRef.id, "conversionClicks")),
     ]);
-    const childRefs = [comments, votes, saves, shares].flatMap((snapshot) =>
+    const childRefs = [comments, votes, saves, shares, views, detailViews, conversionClicks].flatMap((snapshot) =>
       snapshot.docs.map((entry) => entry.ref),
     );
     for (let start = 0; start < childRefs.length; start += 450) {

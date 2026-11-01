@@ -12,7 +12,7 @@ import {
 } from "@/components/icons";
 import { clipStats, DISCLOSURE_HINT, DISCLOSURE_LABEL, isClipAllowedFor, productById, useAuthor, useProduct } from "@/lib/catalog";
 import { firebaseConfigured } from "@/lib/firebase/client";
-import { subscribeClipComments, subscribeClipCounts, subscribeClipVotes } from "@/lib/firebase/clips";
+import { recordClipEvent, subscribeClipComments, subscribeClipCounts, subscribeClipVotes } from "@/lib/firebase/clips";
 import { useApp } from "@/lib/store";
 import { CommunityInsightsModal } from "@/components/product-feedback";
 import { subscribeProductSurveys, type ProductSurveySummary } from "@/lib/firebase/product-insights";
@@ -186,6 +186,7 @@ function ModeChip({
 function ClipSlide({ clip, active }: { clip: Clip; active: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const soundOn = useApp((s) => s.soundOn);
+  const userId = useApp((s) => s.user?.id);
   const [paused, setPaused] = useState(false);
 
   useEffect(() => {
@@ -210,6 +211,13 @@ function ClipSlide({ clip, active }: { clip: Clip; active: boolean }) {
           playsInline
           muted={!soundOn}
           className="absolute inset-0 h-full w-full object-cover"
+          onPlay={() => {
+            if (userId && userId !== clip.authorId && firebaseConfigured) {
+              void recordClipEvent(clip.id, "views", userId).catch((error: unknown) => {
+                console.error("[firebase] Could not record clip playback.", error);
+              });
+            }
+          }}
           onClick={() => setPaused((p) => !p)}
         />
       ) : (
@@ -345,7 +353,14 @@ function ClipOverlay({ clip, active }: { clip: Clip; active: boolean }) {
         <button
           type="button"
           className="w-full text-left"
-          onClick={() => openSheet("product", clip.id)}
+          onClick={() => {
+            if (userId && userId !== clip.authorId && firebaseConfigured) {
+              void recordClipEvent(clip.id, "detailViews", userId).catch((error: unknown) => {
+                console.error("[firebase] Could not record product-sheet click.", error);
+              });
+            }
+            openSheet("product", clip.id);
+          }}
         >
           <div className="truncate font-display text-[12px] font-extrabold leading-tight">
             {product.name}
@@ -391,7 +406,14 @@ function ClipOverlay({ clip, active }: { clip: Clip; active: boolean }) {
 
         <button
           type="button"
-          onClick={() => openSheet("cta", clip.id)}
+          onClick={() => {
+            if (userId && userId !== clip.authorId && firebaseConfigured && (product.cta === "buy" || product.cta === "book")) {
+              void recordClipEvent(clip.id, "conversionClicks", userId).catch((error: unknown) => {
+                console.error("[firebase] Could not record purchase/reservation click.", error);
+              });
+            }
+            openSheet("cta", clip.id);
+          }}
           className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-gradient-to-br from-mint to-cyan py-1 text-[11px] font-extrabold text-bg"
         >
           <CtaIcon kind={product.cta} />

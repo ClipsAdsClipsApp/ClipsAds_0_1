@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { uploadPresigned } from "@vercel/blob/client";
 import { CreditCard, ExternalLink, LoaderCircle, Trash2 } from "lucide-react";
-import { BottomNav, OptionButton } from "@/components/chrome";
+import { BottomNav } from "@/components/chrome";
 import {
   IconChart,
   IconLogout,
@@ -20,7 +20,7 @@ import { UserButton } from "@/lib/auth/gates";
 import { openCookieSettings } from "@/components/cookie-consent";
 import { changePassword, signOut } from "@/lib/firebase/auth";
 import { firebaseConfigured, getFirebaseAuth } from "@/lib/firebase/client";
-import { subscribeMySharedClips } from "@/lib/firebase/clips";
+import { subscribeClipCounts, subscribeMySharedClips, type ClipCounts } from "@/lib/firebase/clips";
 import { saveMyProfile } from "@/lib/profile";
 
 export function Explore() {
@@ -132,7 +132,6 @@ export function Explore() {
     </div>
   );
 }
-
 function Chip({
   on,
   onClick,
@@ -1148,15 +1147,58 @@ function PrivacyRow({
 }
 
 function BusinessPanel() {
-  const metrics = useMemo(
-    () => [
-      { k: "Reproducciones", v: "18.4K" },
-      { k: "Guardados", v: "1.2K" },
-      { k: "Clics a ficha", v: "640" },
-      { k: "Reservas / compras", v: "92" },
-    ],
-    [],
+  const userId = useApp((state) => state.user?.id);
+  const [clipIds, setClipIds] = useState<string[]>([]);
+  const [counts, setCounts] = useState<Record<string, ClipCounts>>({});
+
+  useEffect(() => {
+    if (!firebaseConfigured || !userId) {
+      setClipIds([]);
+      return;
+    }
+    return subscribeMySharedClips(
+      userId,
+      (docs) => setClipIds(docs.map((entry) => entry.clip.id)),
+      (error) => console.error("[firebase] Could not load business clips.", error),
+    );
+  }, [userId]);
+
+  useEffect(() => {
+    if (!firebaseConfigured || !clipIds.length) {
+      setCounts({});
+      return;
+    }
+    let active = true;
+    const unsubscribe = clipIds.map((clipId) =>
+      subscribeClipCounts(clipId, (next) => {
+        if (active) setCounts((current) => ({ ...current, [clipId]: next }));
+      }, (error) => {
+        console.error("[firebase] Could not load business metrics.", error);
+      }),
+    );
+    return () => {
+      active = false;
+      unsubscribe.forEach((stop) => stop());
+    };
+  }, [clipIds]);
+
+  const totals = clipIds.reduce(
+    (sum, clipId) => {
+      const current = counts[clipId];
+      sum.views += current?.views ?? 0;
+      sum.saves += current?.saves ?? 0;
+      sum.detailViews += current?.detailViews ?? 0;
+      sum.conversionClicks += current?.conversionClicks ?? 0;
+      return sum;
+    },
+    { views: 0, saves: 0, detailViews: 0, conversionClicks: 0 },
   );
+  const metrics = [
+    { k: "Reproducciones", v: totals.views },
+    { k: "Guardados", v: totals.saves },
+    { k: "Clics a ficha", v: totals.detailViews },
+    { k: "Clics reserva/compra", v: totals.conversionClicks },
+  ];
   return (
     <div>
       <div className="mb-3 flex items-center gap-2 text-sm font-bold">
@@ -1167,17 +1209,12 @@ function BusinessPanel() {
         {metrics.map((m) => (
           <div key={m.k} className="rounded-2xl border border-line bg-surface p-3">
             <div className="text-[11px] text-muted">{m.k}</div>
-            <div className="font-display text-xl font-bold tabular-nums text-mint">{m.v}</div>
+            <div className="font-display text-xl font-bold tabular-nums text-mint">{formatCount(m.v)}</div>
           </div>
         ))}
       </div>
-      <p className="mb-2 text-xs font-bold text-muted">Campañas locales</p>
-      <div className="space-y-2">
-        <Campaign name="Café Nexo · Parla 2 km" status="Activa" />
-        <Campaign name="Barbería Sur · fade 18€" status="Pausada" />
-      </div>
       <p className="mt-4 text-xs text-muted">
-        Las empresas no pueden borrar críticas legítimas. Solo responder.
+        Reproducciones y clics son eventos; compras y reservas completadas se confirman por separado.
       </p>
     </div>
   );
@@ -1274,13 +1311,3 @@ function StripeConnectCard() {
   );
 }
 
-function Campaign({ name, status }: { name: string; status: string }) {
-  return (
-    <div className="flex items-center justify-between rounded-2xl border border-line bg-surface px-3 py-3">
-      <span className="text-sm font-semibold">{name}</span>
-      <span className={cn("text-[11px] font-extrabold", status === "Activa" ? "text-mint" : "text-muted")}>
-        {status}
-      </span>
-    </div>
-  );
-}
