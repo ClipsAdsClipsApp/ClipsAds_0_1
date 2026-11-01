@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { uploadPresigned } from "@vercel/blob/client";
 import { CreditCard, ExternalLink, LoaderCircle, Trash2 } from "lucide-react";
 import { BottomNav } from "@/components/chrome";
@@ -20,7 +20,7 @@ import { UserButton } from "@/lib/auth/gates";
 import { openCookieSettings } from "@/components/cookie-consent";
 import { changePassword, signOut } from "@/lib/firebase/auth";
 import { firebaseConfigured, getFirebaseAuth } from "@/lib/firebase/client";
-import { subscribeClipCounts, subscribeMySharedClips, type ClipCounts } from "@/lib/firebase/clips";
+import { subscribeClipCounts, subscribeMySharedClips, type ClipCounts, type SharedClipDoc } from "@/lib/firebase/clips";
 import { saveMyProfile } from "@/lib/profile";
 
 export function Explore() {
@@ -1148,20 +1148,24 @@ function PrivacyRow({
 
 function BusinessPanel() {
   const userId = useApp((state) => state.user?.id);
-  const [clipIds, setClipIds] = useState<string[]>([]);
+  const setTab = useApp((state) => state.setTab);
+  const setActiveClip = useApp((state) => state.setActiveClip);
+  const [published, setPublished] = useState<SharedClipDoc[]>([]);
   const [counts, setCounts] = useState<Record<string, ClipCounts>>({});
 
   useEffect(() => {
     if (!firebaseConfigured || !userId) {
-      setClipIds([]);
+      setPublished([]);
       return;
     }
     return subscribeMySharedClips(
       userId,
-      (docs) => setClipIds(docs.map((entry) => entry.clip.id)),
+      setPublished,
       (error) => console.error("[firebase] Could not load business clips.", error),
     );
   }, [userId]);
+
+  const clipIds = useMemo(() => published.map((entry) => entry.clip.id), [published]);
 
   useEffect(() => {
     if (!firebaseConfigured || !clipIds.length) {
@@ -1216,6 +1220,44 @@ function BusinessPanel() {
       <p className="mt-4 text-xs text-muted">
         Reproducciones y clics son eventos; compras y reservas completadas se confirman por separado.
       </p>
+      <section className="mt-5">
+        <h3 className="mb-2 text-sm font-bold">Mis clips publicados</h3>
+        {published.length === 0 ? (
+          <p className="py-6 text-center text-xs text-muted">Todavía no has publicado clips.</p>
+        ) : (
+          <div className="space-y-2">
+            {published.map(({ clip, product }) => {
+              const clipMetric = counts[clip.id];
+              return (
+                <button
+                  key={clip.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveClip(clip.id);
+                    setTab("home");
+                  }}
+                  className="flex w-full items-center gap-3 rounded-xl border border-line bg-surface p-2 text-left"
+                >
+                  <ClipThumb
+                    clip={clip}
+                    fallback={product.imageUrl}
+                    className="size-14 shrink-0 rounded-lg object-cover"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-xs font-bold">{product.name}</span>
+                    <span className="mt-1 block text-[10px] text-muted">
+                      {formatCount(clipMetric?.views ?? 0)} reproducciones · {formatCount(clipMetric?.saves ?? 0)} guardados
+                    </span>
+                    <span className="block text-[10px] text-muted">
+                      {formatCount(clipMetric?.detailViews ?? 0)} ficha · {formatCount(clipMetric?.conversionClicks ?? 0)} clics reserva/compra
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
