@@ -191,11 +191,15 @@ service cloud.firestore {
         allow read: if true;
         allow create, update: if request.auth != null
           && request.auth.uid == userId
-          && request.resource.data.keys().hasOnly(["adLike", "used", "updatedAt"])
+          && request.resource.data.keys().hasOnly(["adLike", "used", "would", "tried", "updatedAt"])
           && (!request.resource.data.keys().hasAny(["adLike"])
             || request.resource.data.adLike in ["yes", "no"])
           && (!request.resource.data.keys().hasAny(["used"])
-            || request.resource.data.used in ["yes", "no"]);
+            || request.resource.data.used in ["yes", "no"])
+          && (!request.resource.data.keys().hasAny(["would"])
+            || request.resource.data.would in ["yes", "no"])
+          && (!request.resource.data.keys().hasAny(["tried"])
+            || request.resource.data.tried in ["verified", "casual", "no"]);
         allow delete: if request.auth != null
           && (request.auth.uid == userId || ownsClip(clipId));
       }

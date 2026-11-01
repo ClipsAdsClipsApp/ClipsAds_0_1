@@ -15,6 +15,7 @@ import { firebaseConfigured } from "@/lib/firebase/client";
 import { subscribeClipComments, subscribeClipCounts, subscribeClipVotes } from "@/lib/firebase/clips";
 import { useApp } from "@/lib/store";
 import { CommunityInsightsModal } from "@/components/product-feedback";
+import { subscribeProductSurveys, type ProductSurveySummary } from "@/lib/firebase/product-insights";
 import { getFirebaseAuth } from "@/lib/firebase/client";
 import type { Clip, CtaKind, Creator, Disclosure, Product } from "@/lib/types";
 import { cn, formatCount, formatPrice, resolveAvatar } from "@/lib/utils";
@@ -242,6 +243,12 @@ function ClipOverlay({ clip, active }: { clip: Clip; active: boolean }) {
   const clipCounts = useApp((s) => s.clipCounts[clip.id]);
   const setClipCounts = useApp((s) => s.setClipCounts);
   const product = useProduct(clip.productId);
+  const [productSurvey, setProductSurvey] = useState<ProductSurveySummary>({
+    boughtYes: 0,
+    boughtNo: 0,
+    ratingCount: 0,
+    ratingAverage: 0,
+  });
   const saved = useApp((s) => s.saved);
   const toggleSave = useApp((s) => s.toggleSave);
   const openSheet = useApp((s) => s.openSheet);
@@ -252,6 +259,8 @@ function ClipOverlay({ clip, active }: { clip: Clip; active: boolean }) {
     ...clip,
     adYes: (clip.adYes ?? 0) + (clipVotes?.adYes ?? 0),
     adNo: (clip.adNo ?? 0) + (clipVotes?.adNo ?? 0),
+    wouldYes: clipVotes?.wouldYes ?? clip.wouldYes,
+    wouldNo: clipVotes?.wouldNo ?? clip.wouldNo,
   });
   const voteAdLike = useApp((s) => s.voteAdLike);
   const localAd = useApp((s) => s.adLike[clip.id]);
@@ -267,6 +276,12 @@ function ClipOverlay({ clip, active }: { clip: Clip; active: boolean }) {
   const usedTotal = (clipVotes?.usedYes ?? 0) + (clipVotes?.usedNo ?? 0);
   const usedYesPct = usedTotal ? Math.round(((clipVotes?.usedYes ?? 0) / usedTotal) * 100) : 0;
   const usedNoPct = usedTotal ? 100 - usedYesPct : 0;
+  const adYesCount = (clip.adYes ?? 0) + (clipVotes?.adYes ?? 0);
+  const adNoCount = (clip.adNo ?? 0) + (clipVotes?.adNo ?? 0);
+  const boughtTotal = productSurvey.boughtYes + productSurvey.boughtNo;
+  const wouldYes = clipVotes?.wouldYes ?? clip.wouldYes;
+  const wouldNo = clipVotes?.wouldNo ?? clip.wouldNo;
+  const wouldTotal = wouldYes + wouldNo;
   const usedYes = myUsed === "yes";
   const usedNo = myUsed === "no";
 
@@ -280,6 +295,13 @@ function ClipOverlay({ clip, active }: { clip: Clip; active: boolean }) {
       },
     );
   }, [active, clip.id, setClipCounts]);
+
+  useEffect(() => {
+    if (!active || !firebaseConfigured || !product.id) return;
+    return subscribeProductSurveys(product.id, setProductSurvey, (error) => {
+      console.error("[firebase] Could not load product survey counts.", error);
+    });
+  }, [active, product.id]);
 
   useEffect(() => {
     if (!active || !userId || !firebaseConfigured) return;
@@ -340,12 +362,14 @@ function ClipOverlay({ clip, active }: { clip: Clip; active: boolean }) {
           </p>
           <AdVote
             label="Sí"
+            count={adYesCount}
             pct={stats.adYesPct}
             on={myAd === "yes"}
             onClick={() => voteAdLike(clip.id, "yes")}
           />
           <AdVote
             label="No"
+            count={adNoCount}
             pct={stats.adNoPct}
             on={myAd === "no"}
             onClick={() => voteAdLike(clip.id, "no")}
@@ -356,8 +380,13 @@ function ClipOverlay({ clip, active }: { clip: Clip; active: boolean }) {
           <p className="min-w-0 flex-1 text-[9px] font-extrabold leading-tight">
             ¿Lo usarías?
           </p>
-          <Choice label={`Sí ${usedYesPct}%`} on={usedYes} onClick={() => setUsed(clip.id, "yes")} />
-          <Choice label={`No ${usedNoPct}%`} on={usedNo} onClick={() => setUsed(clip.id, "no")} />
+          <Choice label={`Sí ${clipVotes?.usedYes ?? 0} · ${usedYesPct}%`} on={usedYes} onClick={() => setUsed(clip.id, "yes")} />
+          <Choice label={`No ${clipVotes?.usedNo ?? 0} · ${usedNoPct}%`} on={usedNo} onClick={() => setUsed(clip.id, "no")} />
+        </div>
+
+        <div className="mt-1 flex justify-between gap-2 text-[8px] font-semibold text-muted">
+          <span>Compraron {productSurvey.boughtYes}/{boughtTotal} · Comprarían {wouldYes}/{wouldTotal}</span>
+          <span>Verificados {clipVotes?.verified ?? 0}</span>
         </div>
 
         <button
@@ -409,30 +438,6 @@ function Action({
   );
 }
 
-function MetricChip({
-  value,
-  label,
-  accent,
-}: {
-  value: string;
-  label: string;
-  accent: "mint" | "pink";
-}) {
-  return (
-    <div className="min-w-[48px] rounded-[10px] bg-black/55 px-1.5 py-1 text-center">
-      <b
-        className={cn(
-          "block text-[12px] leading-none tabular-nums",
-          accent === "mint" ? "text-mint" : "text-pink",
-        )}
-      >
-        {value}
-      </b>
-      <small className="text-[8px] font-bold uppercase tracking-wide text-subtle">{label}</small>
-    </div>
-  );
-}
-
 function Choice({
   label,
   on,
@@ -459,11 +464,13 @@ function Choice({
 
 function AdVote({
   label,
+  count,
   pct,
   on,
   onClick,
 }: {
   label: string;
+  count: number;
   pct: number;
   on: boolean;
   onClick: () => void;
@@ -480,7 +487,7 @@ function AdVote({
           : "border-white/15 bg-black/40 text-fg",
       )}
     >
-      {label} {pct}%
+      {label} {count} · {pct}%
     </button>
   );
 }
@@ -958,8 +965,23 @@ function ProductSheet({
   const [insightsOpen, setInsightsOpen] = useState(false);
   const following = useApp((s) => s.following);
   const toggleFollow = useApp((s) => s.toggleFollow);
+  const clipVotes = useApp((s) => s.clipVotes[clip.id]);
   const product = useProduct(clip.productId);
-  const stats = clipStats(clip);
+  const [survey, setSurvey] = useState<ProductSurveySummary>({
+    boughtYes: 0,
+    boughtNo: 0,
+    ratingCount: 0,
+    ratingAverage: 0,
+  });
+  useEffect(() => subscribeProductSurveys(product.id, setSurvey), [product.id]);
+  const boughtTotal = survey.boughtYes + survey.boughtNo;
+  const adYes = (clip.adYes ?? 0) + (clipVotes?.adYes ?? 0);
+  const adNo = (clip.adNo ?? 0) + (clipVotes?.adNo ?? 0);
+  const adTotal = adYes + adNo;
+  const wouldYes = clipVotes?.wouldYes ?? clip.wouldYes;
+  const wouldNo = clipVotes?.wouldNo ?? clip.wouldNo;
+  const wouldTotal = wouldYes + wouldNo;
+  const percent = (count: number, total: number) => total ? Math.round((count / total) * 100) : 0;
   return (
     <div className="space-y-3">
       {product.imageUrl ? (
@@ -995,11 +1017,17 @@ function ProductSheet({
         </div>
       </div>
       <p className="text-sm text-muted">{product.description}</p>
-      <div className="grid grid-cols-3 gap-2 text-center">
-        <Mini stat={`${stats.fulfills}%`} label="Cumple" />
-        <Mini stat={`${stats.wouldBuy}%`} label="Compraría" />
-        <Mini stat={`${product.verifiedOpinions}`} label="Verificadas" />
+      <div className="grid grid-cols-2 gap-2 text-center">
+        <Mini stat={`${survey.boughtYes}/${boughtTotal} · ${percent(survey.boughtYes, boughtTotal)}%`} label="Compraron" />
+        <Mini stat={`${adYes}/${adTotal} · ${percent(adYes, adTotal)}%`} label="Les gusta el anuncio" />
+        <Mini stat={`${wouldYes}/${wouldTotal} · ${percent(wouldYes, wouldTotal)}%`} label="Lo comprarían" />
+        <Mini stat={`${clipVotes?.verified ?? 0}`} label="Verificados" />
       </div>
+      {survey.ratingCount ? (
+        <p className="text-center text-[11px] text-muted">
+          Calidad-precio: <b className="text-fg">{survey.ratingAverage.toFixed(1)}/5</b> ({survey.ratingCount} votos)
+        </p>
+      ) : null}
       <button
         type="button"
         onClick={() => setInsightsOpen(true)}

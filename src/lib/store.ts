@@ -366,8 +366,15 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   setTried: (clipId, value) => {
+    const user = get().user;
     set({ tried: { ...get().tried, [clipId]: value }, sheet: null });
     get().persist();
+    if (firebaseConfigured && user) {
+      void saveClipVote(clipId, user.id, { tried: value }).catch((error: unknown) => {
+        console.error("[firebase] Could not save verified tester vote.", error);
+        get().toastMsg("No se pudo guardar la verificación");
+      });
+    }
     get().toastMsg(
       value === "verified"
         ? "Tester verificado"
@@ -393,6 +400,17 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   voteWould: (clipId, value) => {
+    const user = get().user;
+    if (firebaseConfigured && user) {
+      set({ would: { ...get().would, [clipId]: value }, sheet: null });
+      get().persist();
+      void saveClipVote(clipId, user.id, { would: value }).catch((error: unknown) => {
+        console.error("[firebase] Could not save purchase-intent vote.", error);
+        get().toastMsg("No se pudo guardar tu respuesta");
+      });
+      get().toastMsg("Voto registrado");
+      return;
+    }
     const prev = get().would[clipId];
     const clips = get().clips.map((c) => {
       if (c.id !== clipId) return c;
@@ -489,7 +507,12 @@ export const useApp = create<AppState>((set, get) => ({
       get().toastMsg("Clip eliminado");
     } catch (error) {
       console.error("[firebase] Could not delete clip.", error);
-      get().toastMsg("No se pudo eliminar el clip; revisa las reglas de Firestore");
+      const code = error && typeof error === "object" && "code" in error ? error.code : null;
+      get().toastMsg(
+        code === "permission-denied"
+          ? "Firestore denegó el borrado. Publica las reglas actualizadas y verifica que seas dueño del clip."
+          : "No se pudo eliminar el clip. Inténtalo de nuevo.",
+      );
     }
   },
 
@@ -512,7 +535,12 @@ export const useApp = create<AppState>((set, get) => ({
       get().toastMsg("Tus clips publicados se eliminaron");
     } catch (error) {
       console.error("[firebase] Could not delete all clips.", error);
-      get().toastMsg("No se pudieron eliminar tus clips; revisa las reglas de Firestore");
+      const code = error && typeof error === "object" && "code" in error ? error.code : null;
+      get().toastMsg(
+        code === "permission-denied"
+          ? "Firestore denegó el borrado. Publica las reglas actualizadas y verifica que seas dueño de los clips."
+          : "No se pudieron eliminar tus clips. Inténtalo de nuevo.",
+      );
     }
   },
 

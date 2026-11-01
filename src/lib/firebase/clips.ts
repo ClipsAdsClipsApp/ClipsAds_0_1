@@ -31,8 +31,13 @@ export type ClipVoteSummary = {
   adNo: number;
   usedYes: number;
   usedNo: number;
+  wouldYes: number;
+  wouldNo: number;
+  verified: number;
   myAdLike?: "yes" | "no";
   myUsed?: "yes" | "no";
+  myWould?: "yes" | "no";
+  myTried?: "verified" | "casual" | "no";
 };
 
 export type SharedComment = Comment & { authorId: string };
@@ -154,6 +159,9 @@ export function subscribeClipVotes(
         adNo: 0,
         usedYes: 0,
         usedNo: 0,
+        wouldYes: 0,
+        wouldNo: 0,
+        verified: 0,
       };
       for (const voteDoc of snap.docs) {
         const vote = voteDoc.data();
@@ -161,9 +169,16 @@ export function subscribeClipVotes(
         if (vote.adLike === "no") summary.adNo += 1;
         if (vote.used === "yes") summary.usedYes += 1;
         if (vote.used === "no") summary.usedNo += 1;
+        if (vote.would === "yes") summary.wouldYes += 1;
+        if (vote.would === "no") summary.wouldNo += 1;
+        if (vote.tried === "verified") summary.verified += 1;
         if (voteDoc.id === userId) {
           if (vote.adLike === "yes" || vote.adLike === "no") summary.myAdLike = vote.adLike;
           if (vote.used === "yes" || vote.used === "no") summary.myUsed = vote.used;
+          if (vote.would === "yes" || vote.would === "no") summary.myWould = vote.would;
+          if (vote.tried === "verified" || vote.tried === "casual" || vote.tried === "no") {
+            summary.myTried = vote.tried;
+          }
         }
       }
       onData(summary);
@@ -175,7 +190,12 @@ export function subscribeClipVotes(
 export function saveClipVote(
   clipId: string,
   userId: string,
-  vote: { adLike?: "yes" | "no"; used?: "yes" | "no" },
+  vote: {
+    adLike?: "yes" | "no";
+    used?: "yes" | "no";
+    would?: "yes" | "no";
+    tried?: "verified" | "casual" | "no";
+  },
 ): Promise<void> {
   return setDoc(
     doc(getFirebaseFirestore(), "clips", clipId, "votes", userId),
@@ -213,7 +233,6 @@ export async function deleteAllSharedClips(authorId: string): Promise<void> {
 
 async function deleteClipDocuments(clipRefs: DocumentReference[]): Promise<void> {
   const db = getFirebaseFirestore();
-  const allRefs: DocumentReference[] = [];
   for (const clipRef of clipRefs) {
     const [comments, votes, saves, shares] = await Promise.all([
       getDocs(collection(db, "clips", clipRef.id, "comments")),
@@ -221,15 +240,14 @@ async function deleteClipDocuments(clipRefs: DocumentReference[]): Promise<void>
       getDocs(collection(db, "clips", clipRef.id, "saves")),
       getDocs(collection(db, "clips", clipRef.id, "shares")),
     ]);
-    allRefs.push(...comments.docs.map((entry) => entry.ref));
-    allRefs.push(...votes.docs.map((entry) => entry.ref));
-    allRefs.push(...saves.docs.map((entry) => entry.ref));
-    allRefs.push(...shares.docs.map((entry) => entry.ref));
-    allRefs.push(clipRef);
-  }
-  for (let start = 0; start < allRefs.length; start += 450) {
-    const batch = writeBatch(db);
-    for (const ref of allRefs.slice(start, start + 450)) batch.delete(ref);
-    await batch.commit();
+    const childRefs = [comments, votes, saves, shares].flatMap((snapshot) =>
+      snapshot.docs.map((entry) => entry.ref),
+    );
+    for (let start = 0; start < childRefs.length; start += 450) {
+      const batch = writeBatch(db);
+      for (const ref of childRefs.slice(start, start + 450)) batch.delete(ref);
+      await batch.commit();
+    }
+    await deleteDoc(clipRef);
   }
 }
