@@ -212,7 +212,7 @@ function ClipSlide({ clip, active }: { clip: Clip; active: boolean }) {
           muted={!soundOn}
           className="absolute inset-0 h-full w-full object-cover"
           onPlay={() => {
-            if (userId && userId !== clip.authorId && firebaseConfigured) {
+            if (userId && firebaseConfigured) {
               void recordClipEvent(clip.id, "views", userId).catch((error: unknown) => {
                 console.error("[firebase] Could not record clip playback.", error);
               });
@@ -354,7 +354,7 @@ function ClipOverlay({ clip, active }: { clip: Clip; active: boolean }) {
           type="button"
           className="w-full text-left"
           onClick={() => {
-            if (userId && userId !== clip.authorId && firebaseConfigured) {
+            if (userId && firebaseConfigured) {
               void recordClipEvent(clip.id, "detailViews", userId).catch((error: unknown) => {
                 console.error("[firebase] Could not record product-sheet click.", error);
               });
@@ -407,7 +407,7 @@ function ClipOverlay({ clip, active }: { clip: Clip; active: boolean }) {
         <button
           type="button"
           onClick={() => {
-            if (userId && userId !== clip.authorId && firebaseConfigured && (product.cta === "buy" || product.cta === "book")) {
+            if (userId && firebaseConfigured && (product.cta === "buy" || product.cta === "book")) {
               void recordClipEvent(clip.id, "conversionClicks", userId).catch((error: unknown) => {
                 console.error("[firebase] Could not record purchase/reservation click.", error);
               });
