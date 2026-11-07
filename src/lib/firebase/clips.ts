@@ -138,16 +138,20 @@ export function subscribeMySharedClips(
   authorId: string,
   onData: (docs: SharedClipDoc[]) => void,
   onError?: (error: Error) => void,
+  mode?: "personal" | "business",
 ): () => void {
   const q = query(collection(getFirebaseFirestore(), "clips"), where("authorId", "==", authorId));
   return onSnapshot(
     q,
-    (snap) =>
-      onData(
-        snap.docs
-          .map((d) => d.data() as SharedClipDoc)
-          .sort((a, b) => b.createdAt - a.createdAt),
-      ),
+      (snap) => {
+        const docs = snap.docs.map((d) => d.data() as SharedClipDoc);
+        const visible = mode === "personal"
+          ? docs.filter((entry) => !entry.clip.businessId)
+          : mode === "business"
+            ? docs.filter((entry) => Boolean(entry.clip.businessId))
+            : docs;
+        onData(visible.sort((a, b) => b.createdAt - a.createdAt));
+      },
     (error) => onError?.(error),
   );
 }
@@ -251,7 +255,9 @@ export async function syncSharedAuthor(authorId: string, author: SharedAuthor): 
   for (let start = 0; start < matches.docs.length; start += 450) {
     const batch = writeBatch(getFirebaseFirestore());
     for (const match of matches.docs.slice(start, start + 450)) {
-      batch.update(match.ref, { author });
+      if (!(match.data().clip as Clip | undefined)?.businessId) {
+        batch.update(match.ref, { author });
+      }
     }
     await batch.commit();
   }

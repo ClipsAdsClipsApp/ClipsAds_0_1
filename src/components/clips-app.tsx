@@ -145,6 +145,9 @@ export function ClipsApp() {
             avatarUrl:
               (p.avatarUrl && !p.avatarUrl.startsWith("/avatars/") ? p.avatarUrl : session.profileImageUrl) || "",
             role: (p.role as Role) || "user",
+            creatorMode: p.creatorMode ?? p.role === "creator",
+            businessId: p.businessId,
+            accountMode: p.accountMode === "business" ? "business" : "personal",
             bio: p.bio,
             ageRange: (p.ageRange as AgeRange) || "25-34",
             gender: "prefer_not",

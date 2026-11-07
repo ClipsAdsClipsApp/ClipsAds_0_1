@@ -45,8 +45,67 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/clips/$(clipId)).data.authorId == request.auth.uid;
     }
 
+    function ownsBusiness(businessId) {
+      return request.auth != null
+        && businessId == request.auth.uid
+        && exists(/databases/$(database)/documents/businesses/$(businessId))
+        && get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid;
+    }
+
+    function maxClipDuration(userId, clip) {
+      let profile = get(/databases/$(database)/documents/users/$(userId)).data;
+      let creatorEnabled = profile.keys().hasAny(["creatorMode"])
+        ? profile.creatorMode == true
+        : profile.role == "creator";
+      return clip.keys().hasAny(["businessId"]) || creatorEnabled ? 35 : 10;
+    }
+
     match /users/{userId}/{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /businesses/{businessId} {
+      allow read: if request.auth != null && businessId == request.auth.uid;
+      allow create: if request.auth != null
+        && businessId == request.auth.uid
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.plan == "basic"
+        && request.resource.data.keys().hasOnly([
+          "ownerId", "name", "city", "address", "openingHours", "plan", "createdAt", "updatedAt"
+        ])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 60
+        && request.resource.data.city is string
+        && request.resource.data.city.size() > 0
+        && request.resource.data.city.size() <= 40
+        && request.resource.data.address is string
+        && request.resource.data.address.size() <= 120
+        && request.resource.data.openingHours is string
+        && request.resource.data.openingHours.size() <= 160
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if request.auth != null
+        && businessId == request.auth.uid
+        && resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.plan == resource.data.plan
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.keys().hasOnly([
+          "ownerId", "name", "city", "address", "openingHours", "plan", "createdAt", "updatedAt"
+        ])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 60
+        && request.resource.data.city is string
+        && request.resource.data.city.size() > 0
+        && request.resource.data.city.size() <= 40
+        && request.resource.data.address is string
+        && request.resource.data.address.size() <= 120
+        && request.resource.data.openingHours is string
+        && request.resource.data.openingHours.size() <= 160
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
     }
 
     match /product-insights/{productId} {
@@ -166,7 +225,12 @@ service cloud.firestore {
       allow read: if true;
       allow create: if request.auth != null
         && request.resource.data.authorId == request.auth.uid
-        && request.resource.data.clip.authorId == request.auth.uid;
+        && request.resource.data.clip.authorId == request.auth.uid
+        && (!request.resource.data.clip.keys().hasAny(["businessId"])
+          || ownsBusiness(request.resource.data.clip.businessId))
+        && request.resource.data.clip.durationSeconds is number
+        && request.resource.data.clip.durationSeconds > 0
+        && request.resource.data.clip.durationSeconds <= maxClipDuration(request.auth.uid, request.resource.data.clip);
       allow update: if request.auth != null
         && request.resource.data.authorId == resource.data.authorId
         && request.resource.data.clip.authorId == resource.data.authorId

@@ -177,6 +177,7 @@ export function Onboarding({ session }: { session?: AppUser | null }) {
           city,
           avatarUrl: session?.profileImageUrl || "",
           role,
+          creatorMode: role === "creator",
         },
       });
       const user: UserProfile = {
@@ -187,6 +188,7 @@ export function Onboarding({ session }: { session?: AppUser | null }) {
         phone: saved.phone || "",
         avatarUrl: saved.avatarUrl || "",
         role: saved.role as Role,
+        creatorMode: saved.creatorMode ?? saved.role === "creator",
         bio: saved.bio,
         ageRange,
         gender,

@@ -19,6 +19,7 @@ import {
   type ClipCounts,
   recordClipShare,
   setClipSaved,
+  type SharedAuthor,
   type SharedClipDoc,
 } from "@/lib/firebase/clips";
 import { remoteCreators } from "@/lib/creators-registry";
@@ -119,7 +120,7 @@ interface AppState extends Persisted {
   deletePublishedClip: (clipId: string) => Promise<void>;
   deleteAllPublishedClips: () => Promise<void>;
   shareClip: (clipId: string) => Promise<void>;
-  publishClip: (clip: Clip, product?: Product) => void;
+  publishClip: (clip: Clip, product?: Product, author?: SharedAuthor) => void;
 }
 
 function save(part: Persisted) {
@@ -571,7 +572,7 @@ export const useApp = create<AppState>((set, get) => ({
     }
   },
 
-  publishClip: (clip, product) => {
+  publishClip: (clip, product, authorOverride) => {
     const user = get().user;
     const located: Clip = { ...clip, country: user?.country, province: user?.province };
     set({
@@ -588,7 +589,7 @@ export const useApp = create<AppState>((set, get) => ({
         authorId: user.id,
         clip: located,
         product,
-        author: {
+        author: authorOverride ?? {
           username: user.username,
           displayName: user.displayName,
           avatarUrl: avatar && !avatar.startsWith("/avatars/") ? avatar : "",
