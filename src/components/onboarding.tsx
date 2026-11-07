@@ -29,9 +29,9 @@ const GENDERS: { id: Gender; label: string }[] = [
   { id: "prefer_not", label: "Prefiero no decirlo" },
 ];
 const ROLES: { id: Role; label: string; hint: string }[] = [
-  { id: "user", label: "Usuario", hint: "Descubrir y opinar" },
-  { id: "creator", label: "Creador", hint: "Publicar reseñas" },
-  { id: "business", label: "Empresa", hint: "Llegar a tu barrio" },
+  { id: "user", label: "Usuario", hint: "Descubrir y compartir" },
+  { id: "creator", label: "Creador", hint: "Crear y colaborar gratis" },
+  { id: "business", label: "Negocio local", hint: "Mostrar productos y servicios" },
 ];
 
 export function Onboarding({ session }: { session?: AppUser | null }) {

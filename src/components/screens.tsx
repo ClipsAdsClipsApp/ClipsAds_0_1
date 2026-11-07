@@ -20,7 +20,7 @@ import { UserButton } from "@/lib/auth/gates";
 import { openCookieSettings } from "@/components/cookie-consent";
 import { changePassword, signOut } from "@/lib/firebase/auth";
 import { firebaseConfigured, getFirebaseAuth } from "@/lib/firebase/client";
-import { subscribeClipCounts, subscribeMySharedClips, type ClipCounts, type SharedClipDoc } from "@/lib/firebase/clips";
+import { getOwnedClipEventCounts, subscribeClipCounts, subscribeMySharedClips, type ClipCounts, type SharedClipDoc } from "@/lib/firebase/clips";
 import { saveMyProfile } from "@/lib/profile";
 
 export function Explore() {
@@ -815,7 +815,7 @@ export function Profile() {
   const saved = useApp((s) => s.saved);
   const following = useApp((s) => s.following);
   const toastMsg = useApp((s) => s.toastMsg);
-  const [panel, setPanel] = useState<"profile" | "business">("profile");
+  const [panel, setPanel] = useState<"profile" | "creator" | "business">("profile");
   const [displayName, setDisplayName] = useState(user?.displayName ?? "");
   const [bio, setBio] = useState(user?.bio ?? "");
   const [saving, setSaving] = useState(false);
@@ -938,7 +938,7 @@ export function Profile() {
           <div>
             <h1 className="font-display text-xl font-bold">@{user.username}</h1>
             <p className="text-xs text-muted">
-              {user.city} · {user.role}
+              {user.city} · {user.role === "business" ? "Negocio local" : user.role === "creator" ? "Creador" : "Usuario"}
             </p>
           </div>
         </div>
@@ -947,14 +947,37 @@ export function Profile() {
           <Stat n={saved.length} label="Guardados" />
           <Stat n={following.length} label="Siguiendo" />
         </div>
-        <div className="mt-3 flex gap-1 rounded-[14px] bg-fg/5 p-1">
-          <Chip on={panel === "profile"} onClick={() => setPanel("profile")}>
-            Perfil
-          </Chip>
-          <Chip on={panel === "business"} onClick={() => setPanel("business")}>
-            Empresa
-          </Chip>
-        </div>
+        {user.role !== "user" ? (
+          <div role="group" aria-label="Cambiar vista del perfil" className="mt-3 flex gap-1 rounded-[14px] bg-fg/5 p-1">
+            <button
+              type="button"
+              aria-pressed={panel === "profile"}
+              onClick={() => setPanel("profile")}
+              className={cn("min-h-11 flex-1 rounded-xl px-3 text-xs font-bold", panel === "profile" ? "bg-surface text-fg" : "text-muted")}
+            >
+              Personal
+            </button>
+            {user.role === "creator" ? (
+              <button
+                type="button"
+                aria-pressed={panel === "creator"}
+                onClick={() => setPanel("creator")}
+                className={cn("min-h-11 flex-1 rounded-xl px-3 text-xs font-bold", panel === "creator" ? "bg-surface text-fg" : "text-muted")}
+              >
+                Centro de creadores
+              </button>
+            ) : (
+              <button
+                type="button"
+                aria-pressed={panel === "business"}
+                onClick={() => setPanel("business")}
+                className={cn("min-h-11 flex-1 rounded-xl px-3 text-xs font-bold", panel === "business" ? "bg-surface text-fg" : "text-muted")}
+              >
+                Mi negocio
+              </button>
+            )}
+          </div>
+        ) : null}
       </header>
       <div className="scrollbar-none flex-1 overflow-y-auto px-4 pb-24 pt-4">
         {panel === "profile" ? (
@@ -1006,6 +1029,14 @@ export function Profile() {
                 );
               })}
             </div>
+            <section className="mb-4 border-y border-line py-3">
+              <h2 className="mb-2 text-sm font-bold">Actividad</h2>
+              <p className="text-xs text-muted">{saved.length} productos guardados</p>
+              <div className="mt-3 border-t border-line pt-3">
+                <h3 className="text-xs font-bold">Compras y reservas</h3>
+                <p className="mt-1 text-xs text-muted">El historial de pedidos y reservas todavía no está disponible.</p>
+              </div>
+            </section>
             <PrivacyRow
               icon={<IconShield size={18} />}
               title="Personalización publicitaria"
@@ -1103,7 +1134,7 @@ export function Profile() {
             {saving ? <p className="mt-2 text-center text-[11px] text-muted">Guardando…</p> : null}
           </>
         ) : (
-          <BusinessPanel />
+          <BusinessPanel mode={user.role === "creator" ? "creator" : "business"} />
         )}
       </div>
       <BottomNav />
@@ -1146,7 +1177,7 @@ function PrivacyRow({
   );
 }
 
-function BusinessPanel() {
+function BusinessPanel({ mode }: { mode: "creator" | "business" }) {
   const userId = useApp((state) => state.user?.id);
   const setTab = useApp((state) => state.setTab);
   const setActiveClip = useApp((state) => state.setActiveClip);
@@ -1173,6 +1204,19 @@ function BusinessPanel() {
       return;
     }
     let active = true;
+    void Promise.all(
+      published.map(async ({ clip }) => [clip.id, await getOwnedClipEventCounts(clip.id)] as const),
+    ).then((eventCounts) => {
+      if (!active) return;
+      setCounts((current) => ({
+        ...current,
+        ...Object.fromEntries(
+          eventCounts.map(([clipId, events]) => [clipId, { ...current[clipId], ...events }]),
+        ),
+      }));
+    }).catch((error: unknown) => {
+      console.error("[firebase] Could not load private aggregate event metrics.", error);
+    });
     const unsubscribe = clipIds.map((clipId) =>
       subscribeClipCounts(clipId, (next) => {
         if (active) setCounts((current) => ({ ...current, [clipId]: next }));
@@ -1200,15 +1244,16 @@ function BusinessPanel() {
   const metrics = [
     { k: "Reproducciones", v: totals.views },
     { k: "Guardados", v: totals.saves },
-    { k: "Clics a ficha", v: totals.detailViews },
-    { k: "Clics reserva/compra", v: totals.conversionClicks },
+    { k: "Visitas a ficha", v: totals.detailViews },
+    { k: "Clics en CTA", v: totals.conversionClicks },
   ];
   return (
     <div>
       <div className="mb-3 flex items-center gap-2 text-sm font-bold">
-        <IconChart size={16} className="text-cyan" /> Panel de comercio
+        <IconChart size={16} className="text-cyan" />
+        {mode === "creator" ? "Centro de creadores" : "Mi negocio · Plan Básico"}
       </div>
-      <StripeConnectCard />
+      {mode === "business" ? <StripeConnectCard /> : null}
       <div className="mb-4 grid grid-cols-2 gap-2">
         {metrics.map((m) => (
           <div key={m.k} className="rounded-2xl border border-line bg-surface p-3">
@@ -1218,10 +1263,27 @@ function BusinessPanel() {
         ))}
       </div>
       <p className="mt-4 text-xs text-muted">
-        Reproducciones y clics son eventos; compras y reservas completadas se confirman por separado.
+        {mode === "creator"
+          ? "Estas métricas corresponden a tus clips publicados. No incluyen datos personales de quienes los vieron."
+          : "Reproducciones y clics son eventos, no ventas confirmadas. Los pedidos, comisiones y liquidaciones aún no se gestionan aquí."}
       </p>
+      {mode === "creator" ? (
+        <section className="mt-5 border-y border-line py-3">
+          <h3 className="mb-2 text-sm font-bold">Colaboraciones</h3>
+          <p className="py-2 text-xs text-muted">Aquí aparecerán tus propuestas, entregables y colaboraciones aceptadas.</p>
+          <p className="border-t border-line py-2 text-xs text-muted">Los cobros por colaboraciones y afiliación todavía no están disponibles.</p>
+        </section>
+      ) : (
+        <section className="mt-5 border-y border-line py-3">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-bold">Herramientas Pro</h3>
+            <span className="text-[10px] font-bold text-muted">Próximamente</span>
+          </div>
+          <p className="mt-1 text-xs text-muted">Campañas, equipo, establecimientos y analítica ampliada. La suscripción Pro todavía no está disponible.</p>
+        </section>
+      )}
       <section className="mt-5">
-        <h3 className="mb-2 text-sm font-bold">Mis clips publicados</h3>
+        <h3 className="mb-2 text-sm font-bold">{mode === "creator" ? "Tu contenido publicado" : "Clips de tu negocio"}</h3>
         {published.length === 0 ? (
           <p className="py-6 text-center text-xs text-muted">Todavía no has publicado clips.</p>
         ) : (

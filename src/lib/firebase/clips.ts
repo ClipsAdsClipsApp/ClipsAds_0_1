@@ -3,6 +3,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getCountFromServer,
   getDoc,
   getDocs,
   limit,
@@ -50,6 +51,20 @@ export type ClipCounts = {
   detailViews: number;
   conversionClicks: number;
 };
+
+export async function getOwnedClipEventCounts(
+  clipId: string,
+): Promise<Pick<ClipCounts, "views" | "detailViews" | "conversionClicks">> {
+  const db = getFirebaseFirestore();
+  const eventNames = ["views", "detailViews", "conversionClicks"] as const;
+  const entries = await Promise.all(
+    eventNames.map(async (name) => {
+      const result = await getCountFromServer(collection(db, "clips", clipId, name));
+      return [name, result.data().count] as const;
+    }),
+  );
+  return Object.fromEntries(entries) as Pick<ClipCounts, "views" | "detailViews" | "conversionClicks">;
+}
 
 export function subscribeClipCounts(
   clipId: string,

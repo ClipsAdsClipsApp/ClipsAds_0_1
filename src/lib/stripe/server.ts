@@ -9,6 +9,28 @@ const FIREBASE_JWKS = createRemoteJWKSet(
 export class StripeSetupError extends Error {}
 export class CheckoutRequestError extends Error {}
 
+export function getStripeRedirectOrigin(request: Request): string {
+  const configuredOrigin = process.env.APP_ORIGIN?.trim();
+  const vercelHost =
+    process.env.VERCEL_ENV === "production"
+      ? process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim() || process.env.VERCEL_URL?.trim()
+      : process.env.VERCEL_URL?.trim() || process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  const value = configuredOrigin || vercelHost;
+
+  if (!value) {
+    if (process.env.NODE_ENV === "production") {
+      throw new StripeSetupError("Configura APP_ORIGIN para los retornos de Stripe.");
+    }
+    return new URL(request.url).origin;
+  }
+
+  const url = new URL(value.includes("://") ? value : `https://${value}`);
+  if (process.env.NODE_ENV === "production" && url.protocol !== "https:") {
+    throw new StripeSetupError("APP_ORIGIN debe usar HTTPS en producción.");
+  }
+  return url.origin;
+}
+
 export type FirebaseRequestIdentity = {
   uid: string;
   email: string | null;
