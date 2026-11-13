@@ -10,7 +10,10 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminRouteImport } from './routes/admin'
+import { Route as AdminLoginRouteImport } from './routes/admin-login'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiBlobUploadRouteImport } from './routes/api/blob/upload'
 import { Route as ApiStripeCheckoutRouteImport } from './routes/api/stripe/checkout'
 import { Route as ApiStripeConnectRouteImport } from './routes/api/stripe/connect'
@@ -21,9 +24,24 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminLoginRoute = AdminLoginRouteImport.update({
+  id: '/admin-login',
+  path: '/admin-login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiBlobUploadRoute = ApiBlobUploadRouteImport.update({
@@ -49,7 +67,10 @@ const ApiStripeCheckoutVerifyRoute = ApiStripeCheckoutVerifyRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
+  '/admin-login': typeof AdminLoginRoute
   '/login': typeof LoginRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/blob/upload': typeof ApiBlobUploadRoute
   '/api/stripe/checkout': typeof ApiStripeCheckoutRouteWithChildren
   '/api/stripe/connect': typeof ApiStripeConnectRoute
@@ -57,7 +78,10 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
+  '/admin-login': typeof AdminLoginRoute
   '/login': typeof LoginRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/blob/upload': typeof ApiBlobUploadRoute
   '/api/stripe/checkout': typeof ApiStripeCheckoutRouteWithChildren
   '/api/stripe/connect': typeof ApiStripeConnectRoute
@@ -66,7 +90,10 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
+  '/admin-login': typeof AdminLoginRoute
   '/login': typeof LoginRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/blob/upload': typeof ApiBlobUploadRoute
   '/api/stripe/checkout': typeof ApiStripeCheckoutRouteWithChildren
   '/api/stripe/connect': typeof ApiStripeConnectRoute
@@ -76,7 +103,10 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
+    | '/admin-login'
     | '/login'
+    | '/api/auth/$'
     | '/api/blob/upload'
     | '/api/stripe/checkout'
     | '/api/stripe/connect'
@@ -84,7 +114,10 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin'
+    | '/admin-login'
     | '/login'
+    | '/api/auth/$'
     | '/api/blob/upload'
     | '/api/stripe/checkout'
     | '/api/stripe/connect'
@@ -92,7 +125,10 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/admin'
+    | '/admin-login'
     | '/login'
+    | '/api/auth/$'
     | '/api/blob/upload'
     | '/api/stripe/checkout'
     | '/api/stripe/connect'
@@ -101,7 +137,10 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRoute
+  AdminLoginRoute: typeof AdminLoginRoute
   LoginRoute: typeof LoginRoute
+  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiBlobUploadRoute: typeof ApiBlobUploadRoute
   ApiStripeCheckoutRoute: typeof ApiStripeCheckoutRouteWithChildren
   ApiStripeConnectRoute: typeof ApiStripeConnectRoute
@@ -116,11 +155,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin-login': {
+      id: '/admin-login'
+      path: '/admin-login'
+      fullPath: '/admin-login'
+      preLoaderRoute: typeof AdminLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/blob/upload': {
@@ -167,7 +227,10 @@ const ApiStripeCheckoutRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRoute,
+  AdminLoginRoute: AdminLoginRoute,
   LoginRoute: LoginRoute,
+  ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiBlobUploadRoute: ApiBlobUploadRoute,
   ApiStripeCheckoutRoute: ApiStripeCheckoutRouteWithChildren,
   ApiStripeConnectRoute: ApiStripeConnectRoute,

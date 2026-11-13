@@ -56,31 +56,36 @@ export async function getOwnedClipEventCounts(
   clipId: string,
 ): Promise<Pick<ClipCounts, "views" | "detailViews" | "conversionClicks">> {
   const db = getFirebaseFirestore();
-  const eventNames = ["views", "detailViews", "conversionClicks"] as const;
-  const entries = await Promise.all(
-    eventNames.map(async (name) => {
-      const result = await getCountFromServer(collection(db, "clips", clipId, name));
-      return [name, result.data().count] as const;
+  const [views, detailViews, conversionClicks] = await Promise.all([
+    getDocs(collection(db, "clips", clipId, "views")),
+    getCountFromServer(collection(db, "clips", clipId, "detailViews")),
+    getCountFromServer(collection(db, "clips", clipId, "conversionClicks")),
+  ]);
+  const uniqueViewers = new Set(
+    views.docs.flatMap((entry) => {
+      const userId = entry.data().userId;
+      return typeof userId === "string" && userId ? [userId] : [];
     }),
   );
-  return Object.fromEntries(entries) as Pick<ClipCounts, "views" | "detailViews" | "conversionClicks">;
+  return {
+    views: uniqueViewers.size,
+    detailViews: detailViews.data().count,
+    conversionClicks: conversionClicks.data().count,
+  };
 }
 
 export function subscribeClipCounts(
   clipId: string,
-  onData: (counts: ClipCounts) => void,
+  onData: (counts: Pick<ClipCounts, "comments" | "saves" | "shares">) => void,
   onError?: (error: Error) => void,
 ): () => void {
   const db = getFirebaseFirestore();
-  const counts: ClipCounts = {
+  const counts: Pick<ClipCounts, "comments" | "saves" | "shares"> = {
     comments: 0,
     saves: 0,
     shares: 0,
-    views: 0,
-    detailViews: 0,
-    conversionClicks: 0,
   };
-  const watch = (name: keyof ClipCounts) =>
+  const watch = (name: keyof typeof counts) =>
     onSnapshot(
       query(collection(db, "clips", clipId, name), limit(10000)),
       (snap) => {
@@ -103,10 +108,16 @@ export function recordClipEvent(
   event: "views" | "detailViews" | "conversionClicks",
   userId: string,
 ): Promise<void> {
-  return addDoc(collection(getFirebaseFirestore(), "clips", clipId, event), {
+  const events = collection(getFirebaseFirestore(), "clips", clipId, event);
+  const eventData = {
     userId,
     createdAt: serverTimestamp(),
-  }).then(() => undefined);
+  };
+  const write =
+    event === "views"
+      ? setDoc(doc(events, userId), eventData)
+      : addDoc(events, eventData);
+  return write.then(() => undefined);
 }
 
 export function recordClipShare(clipId: string, userId: string): Promise<void> {
@@ -129,7 +140,12 @@ export function subscribeSharedClips(
   const q = query(collection(getFirebaseFirestore(), "clips"), orderBy("createdAt", "desc"), limit(100));
   return onSnapshot(
     q,
-    (snap) => onData(snap.docs.map((d) => d.data() as SharedClipDoc)),
+    (snap) =>
+      onData(
+        snap.docs
+          .filter((d) => !d.get("hidden_at") && !d.get("deleted_at"))
+          .map((d) => d.data() as SharedClipDoc),
+      ),
     (error) => onError?.(error),
   );
 }
@@ -144,7 +160,9 @@ export function subscribeMySharedClips(
   return onSnapshot(
     q,
       (snap) => {
-        const docs = snap.docs.map((d) => d.data() as SharedClipDoc);
+        const docs = snap.docs
+          .filter((d) => !d.get("hidden_at") && !d.get("deleted_at"))
+          .map((d) => d.data() as SharedClipDoc);
         const visible = mode === "personal"
           ? docs.filter((entry) => !entry.clip.businessId)
           : mode === "business"
@@ -169,7 +187,11 @@ export function subscribeClipComments(
   return onSnapshot(
     q,
     (snap) =>
-      onData(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as SharedComment)),
+      onData(
+        snap.docs
+          .filter((d) => !d.get("hidden_at") && !d.get("deleted_at"))
+          .map((d) => ({ id: d.id, ...d.data() }) as SharedComment),
+      ),
     (error) => onError?.(error),
   );
 }

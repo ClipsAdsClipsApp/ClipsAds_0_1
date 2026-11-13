@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { BarChart3, Copy, LoaderCircle, Mail, MessageCircle, Minus, Plus, Send } from "lucide-react";
+import { BarChart3, Copy, Flag, LoaderCircle, Mail, MessageCircle, Minus, Plus, Send } from "lucide-react";
 import { BottomNav, LogoMark, OptionButton, Sheet, Wordmark } from "@/components/chrome";
 import {
   BrandActionIcon,
@@ -13,6 +13,7 @@ import {
 import { clipStats, DISCLOSURE_HINT, DISCLOSURE_LABEL, isClipAllowedFor, productById, useAuthor, useProduct } from "@/lib/catalog";
 import { firebaseConfigured } from "@/lib/firebase/client";
 import { recordClipEvent, subscribeClipComments, subscribeClipCounts, subscribeClipVotes } from "@/lib/firebase/clips";
+import { createContentReport } from "@/lib/admin/server";
 import { useApp } from "@/lib/store";
 import { CommunityInsightsModal } from "@/components/product-feedback";
 import { subscribeProductSurveys, type ProductSurveySummary } from "@/lib/firebase/product-insights";
@@ -246,6 +247,7 @@ function ClipSlide({ clip, active }: { clip: Clip; active: boolean }) {
 
 function ClipOverlay({ clip, active }: { clip: Clip; active: boolean }) {
   const userId = useApp((s) => s.user?.id);
+  const toastMsg = useApp((s) => s.toastMsg);
   const clipVotes = useApp((s) => s.clipVotes[clip.id]);
   const setClipVotes = useApp((s) => s.setClipVotes);
   const clipCounts = useApp((s) => s.clipCounts[clip.id]);
@@ -292,6 +294,26 @@ function ClipOverlay({ clip, active }: { clip: Clip; active: boolean }) {
   const wouldTotal = wouldYes + wouldNo;
   const usedYes = myUsed === "yes";
   const usedNo = myUsed === "no";
+
+  async function reportClip() {
+    if (!window.confirm("¿Quieres enviar este clip al equipo de moderación?")) return;
+    try {
+      const firebaseUser = getFirebaseAuth().currentUser;
+      if (!firebaseUser) throw new Error("Inicia sesión para reportar contenido.");
+      await createContentReport({
+        data: {
+          firebaseToken: await firebaseUser.getIdToken(),
+          targetType: "clip",
+          targetId: clip.id,
+          reason: "other",
+        },
+      });
+      toastMsg("Reporte enviado para revisión");
+    } catch (error) {
+      console.error("[admin] Could not report clip.", error);
+      toastMsg(error instanceof Error ? error.message : "No se pudo enviar el reporte");
+    }
+  }
 
   useEffect(() => {
     if (!active || !firebaseConfigured) return;
@@ -343,6 +365,9 @@ function ClipOverlay({ clip, active }: { clip: Clip; active: boolean }) {
         </Action>
         <Action name="Compartir" label={formatCount(clipCounts?.shares ?? clip.shares)} onClick={() => void shareClip(clip.id)}>
           <BrandActionIcon kind="share" label="Compartir" />
+        </Action>
+        <Action name="Reportar clip" label="" onClick={() => void reportClip()}>
+          <Flag size={19} aria-hidden="true" />
         </Action>
         <Action name="Más opciones" label="" onClick={() => openSheet("more", clip.id)}>
           <BrandActionIcon kind="more" size={42} label="Más" />
@@ -689,8 +714,39 @@ function CommentsSheet({ clipId }: { clipId: string }) {
       <div className="space-y-2">
         {comments.map((c) => (
           <div key={c.id} className="rounded-xl border border-line bg-bg-elevated p-3">
-            <b className="text-xs">@{c.username}</b>
-            <p className="text-[12px] text-muted">{c.text}</p>
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <b className="text-xs">@{c.username}</b>
+                <p className="text-[12px] text-muted">{c.text}</p>
+              </div>
+              <button
+                type="button"
+                aria-label="Reportar comentario"
+                title="Reportar comentario"
+                onClick={async () => {
+                  if (!window.confirm("¿Quieres reportar este comentario?")) return;
+                  try {
+                    const firebaseUser = getFirebaseAuth().currentUser;
+                    if (!firebaseUser) throw new Error("Inicia sesión para reportar contenido.");
+                    await createContentReport({
+                      data: {
+                        firebaseToken: await firebaseUser.getIdToken(),
+                        targetType: "comment",
+                        targetId: `clips/${clipId}/comments/${c.id}`,
+                        reason: "other",
+                      },
+                    });
+                    toastMsg("Reporte enviado para revisión");
+                  } catch (error) {
+                    console.error("[admin] Could not report comment.", error);
+                    toastMsg(error instanceof Error ? error.message : "No se pudo enviar el reporte");
+                  }
+                }}
+                className="grid size-9 shrink-0 place-items-center rounded-lg text-muted hover:bg-fg/5 hover:text-cyan"
+              >
+                <Flag size={15} />
+              </button>
+            </div>
           </div>
         ))}
       </div>

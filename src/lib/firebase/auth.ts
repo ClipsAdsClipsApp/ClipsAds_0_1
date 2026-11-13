@@ -74,12 +74,19 @@ export async function signInWithEmail(
   email: string,
   password: string,
 ): Promise<FirebaseUserInfo> {
-  const credential = await signInWithEmailAndPassword(
-    getFirebaseAuth(),
-    email.trim(),
-    password,
-  );
-  return toFirebaseUserInfo(credential.user);
+  try {
+    const credential = await signInWithEmailAndPassword(
+      getFirebaseAuth(),
+      email.trim(),
+      password,
+    );
+    return toFirebaseUserInfo(credential.user);
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "auth/user-disabled") {
+      throw new Error("Esta cuenta está bloqueada. Contacta con el equipo de ClipsAds.");
+    }
+    throw error;
+  }
 }
 
 export async function resendVerificationEmail(): Promise<void> {
@@ -114,7 +121,14 @@ export async function signIn(providerId: string, callbackURL = "/"): Promise<voi
   if (providerId !== "google") {
     throw new Error("Este método de acceso no está configurado en Firebase.");
   }
-  await signInWithPopup(getFirebaseAuth(), new GoogleAuthProvider());
+  try {
+    await signInWithPopup(getFirebaseAuth(), new GoogleAuthProvider());
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "auth/user-disabled") {
+      throw new Error("Esta cuenta está bloqueada. Contacta con el equipo de ClipsAds.");
+    }
+    throw error;
+  }
   window.location.assign(callbackURL);
 }
 

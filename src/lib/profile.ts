@@ -23,6 +23,16 @@ export type SavedProfile = {
   stripeAccountId?: string;
 };
 
+export async function getMyAccountStatus(userId: string): Promise<{ blocked: boolean; reason: string }> {
+  if (!firebaseConfigured) return { blocked: false, reason: "" };
+  const snapshot = await getDoc(doc(getFirebaseFirestore(), "user_status", userId));
+  const status = snapshot.data();
+  return {
+    blocked: status?.blocked === true,
+    reason: typeof status?.reason === "string" ? status.reason : "",
+  };
+}
+
 export async function getMyProfile(): Promise<SavedProfile | null> {
   if (!firebaseConfigured) return null;
   const user = getFirebaseAuth().currentUser;

@@ -84,7 +84,7 @@ interface AppState extends Persisted {
   remote: SharedClipDoc[];
   clipVotes: Record<string, ClipVoteSummary>;
   clipCounts: Record<string, ClipCounts>;
-  setClipCounts: (clipId: string, counts: ClipCounts) => void;
+  setClipCounts: (clipId: string, counts: Pick<ClipCounts, "comments" | "saves" | "shares">) => void;
   setRemote: (docs: SharedClipDoc[]) => void;
   setClipVotes: (clipId: string, summary: ClipVoteSummary) => void;
   setSharedComments: (clipId: string, comments: Comment[]) => void;
@@ -179,7 +179,22 @@ export const useApp = create<AppState>((set, get) => ({
   clipVotes: {},
   clipCounts: {},
   setClipCounts: (clipId, counts) =>
-    set((s) => ({ clipCounts: { ...s.clipCounts, [clipId]: counts } })),
+    set((s) => ({
+      clipCounts: {
+        ...s.clipCounts,
+        [clipId]: {
+          ...(s.clipCounts[clipId] ?? {
+            comments: 0,
+            saves: 0,
+            shares: 0,
+            views: 0,
+            detailViews: 0,
+            conversionClicks: 0,
+          }),
+          ...counts,
+        },
+      },
+    })),
   tab: "home",
   feedMode: "for-you",
   activeClipId: "",

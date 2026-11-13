@@ -8,7 +8,7 @@ import { PostPurchaseFeedback } from "@/components/product-feedback";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { firebaseConfigured, getFirebaseAuth } from "@/lib/firebase/client";
 import { subscribeSharedClips, syncSharedAuthor } from "@/lib/firebase/clips";
-import { getMyProfile } from "@/lib/profile";
+import { getMyAccountStatus, getMyProfile } from "@/lib/profile";
 import { useApp } from "@/lib/store";
 import type { AgeRange, Role, UserProfile } from "@/lib/types";
 
@@ -27,6 +27,7 @@ export function ClipsApp() {
   const signingOut = useApp((s) => s.signingOut);
   const { user: session, isPending } = useCurrentUserState();
   const [profileReady, setProfileReady] = useState(false);
+  const [accountIssue, setAccountIssue] = useState<{ blocked: boolean; reason: string } | null>(null);
   const [purchaseFeedback, setPurchaseFeedback] = useState<{
     productId: string;
     productName: string;
@@ -124,15 +125,27 @@ export function ClipsApp() {
     let cancelled = false;
     async function sync() {
       if (!session) {
-        if (!cancelled) setProfileReady(true);
+        if (!cancelled) {
+          setAccountIssue(null);
+          setProfileReady(true);
+        }
         return;
       }
-      const current = useApp.getState().user;
-      if (current?.id === session.id) {
-        if (!cancelled) setProfileReady(true);
-        return;
-      }
+      setProfileReady(false);
+      setAccountIssue(null);
       try {
+        const accountStatus = await getMyAccountStatus(session.id);
+        if (cancelled) return;
+        if (accountStatus.blocked) {
+          setAccountIssue({ blocked: true, reason: accountStatus.reason });
+          setProfileReady(true);
+          return;
+        }
+        const current = useApp.getState().user;
+        if (current?.id === session.id) {
+          setProfileReady(true);
+          return;
+        }
         const p = await getMyProfile();
         if (cancelled) return;
         if (p) {
@@ -161,8 +174,12 @@ export function ClipsApp() {
           };
           useApp.getState().login(next, { silent: true });
         }
-      } catch {
-        /* still allow completing onboarding */
+      } catch (error) {
+        console.error("[firebase] Could not verify account access.", error);
+        setAccountIssue({
+          blocked: false,
+          reason: "No se pudo comprobar el estado de tu cuenta. Por seguridad, el acceso queda pausado.",
+        });
       } finally {
         if (!cancelled) setProfileReady(true);
       }
@@ -181,6 +198,26 @@ export function ClipsApp() {
         </div>
       ) : !session ? (
         <Onboarding />
+      ) : accountIssue !== null ? (
+        <div className="grid h-full place-items-center px-7 text-center">
+          <div className="max-w-sm">
+            <p className="font-display text-xl font-extrabold">
+              {accountIssue.blocked ? "Cuenta bloqueada" : "Acceso temporalmente pausado"}
+            </p>
+            <p className="mt-2 text-sm leading-6 text-muted">
+              {accountIssue.blocked
+                ? `No puedes iniciar sesión ni publicar mientras esta cuenta esté bloqueada.${accountIssue.reason ? ` Motivo: ${accountIssue.reason}` : ""}`
+                : accountIssue.reason}
+            </p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="mt-5 min-h-11 rounded-xl border border-line px-5 text-sm font-bold"
+            >
+              Volver a intentar
+            </button>
+          </div>
+        </div>
       ) : !session.emailVerified ? (
         <Onboarding session={session} />
       ) : !user || user.id !== session.id ? (

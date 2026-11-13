@@ -1440,7 +1440,22 @@ function BusinessPanel({
     });
     const unsubscribe = clipIds.map((clipId) =>
       subscribeClipCounts(clipId, (next) => {
-        if (active) setCounts((current) => ({ ...current, [clipId]: next }));
+        if (active) {
+          setCounts((current) => ({
+            ...current,
+            [clipId]: {
+              ...(current[clipId] ?? {
+                comments: 0,
+                saves: 0,
+                shares: 0,
+                views: 0,
+                detailViews: 0,
+                conversionClicks: 0,
+              }),
+              ...next,
+            },
+          }));
+        }
       }, (error) => {
         console.error("[firebase] Could not load business metrics.", error);
       }),
@@ -1654,4 +1669,3 @@ function StripeConnectCard() {
     </section>
   );
 }
-
