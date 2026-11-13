@@ -45,91 +45,19 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/clips/$(clipId)).data.authorId == request.auth.uid;
     }
 
-    function clipModerationFieldsUnchanged() {
-      return request.resource.data.get("hidden_at", null) == resource.data.get("hidden_at", null)
-        && request.resource.data.get("hidden_by", null) == resource.data.get("hidden_by", null)
-        && request.resource.data.get("hidden_reason", null) == resource.data.get("hidden_reason", null)
-        && request.resource.data.get("deleted_at", null) == resource.data.get("deleted_at", null);
-    }
-
-    function activeUser() {
-      return request.auth != null
-        && (!exists(/databases/$(database)/documents/user_status/$(request.auth.uid))
-          || get(/databases/$(database)/documents/user_status/$(request.auth.uid)).data.blocked != true);
-    }
-
-    function ownsBusiness(businessId) {
-      return request.auth != null
-        && businessId == request.auth.uid
-        && exists(/databases/$(database)/documents/businesses/$(businessId))
-        && get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid;
-    }
-
-    function maxClipDuration(userId, clip) {
-      let profile = get(/databases/$(database)/documents/users/$(userId)).data;
-      let creatorEnabled = profile.keys().hasAny(["creatorMode"])
-        ? profile.creatorMode == true
-        : profile.role == "creator";
-      return clip.keys().hasAny(["businessId"]) || creatorEnabled ? 35 : 10;
-    }
-
-    match /users/{userId}/{document=**} {
+    match /users/{userId} {
       allow read: if request.auth != null && request.auth.uid == userId;
-      allow write: if activeUser() && request.auth.uid == userId;
-    }
-
-    match /user_status/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow write: if false;
-    }
-
-    match /businesses/{businessId} {
-      allow read: if request.auth != null && businessId == request.auth.uid;
-      allow create: if activeUser()
-        && businessId == request.auth.uid
-        && request.resource.data.ownerId == request.auth.uid
-        && request.resource.data.plan == "basic"
-        && request.resource.data.keys().hasOnly([
-          "ownerId", "name", "city", "address", "openingHours", "plan", "createdAt", "updatedAt"
-        ])
-        && request.resource.data.name is string
-        && request.resource.data.name.size() > 0
-        && request.resource.data.name.size() <= 60
-        && request.resource.data.city is string
-        && request.resource.data.city.size() > 0
-        && request.resource.data.city.size() <= 40
-        && request.resource.data.address is string
-        && request.resource.data.address.size() <= 120
-        && request.resource.data.openingHours is string
-        && request.resource.data.openingHours.size() <= 160
-        && request.resource.data.createdAt == request.time
-        && request.resource.data.updatedAt == request.time;
-      allow update: if activeUser()
-        && businessId == request.auth.uid
-        && resource.data.ownerId == request.auth.uid
-        && request.resource.data.ownerId == resource.data.ownerId
-        && request.resource.data.plan == resource.data.plan
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.keys().hasOnly([
-          "ownerId", "name", "city", "address", "openingHours", "plan", "createdAt", "updatedAt"
-        ])
-        && request.resource.data.name is string
-        && request.resource.data.name.size() > 0
-        && request.resource.data.name.size() <= 60
-        && request.resource.data.city is string
-        && request.resource.data.city.size() > 0
-        && request.resource.data.city.size() <= 40
-        && request.resource.data.address is string
-        && request.resource.data.address.size() <= 120
-        && request.resource.data.openingHours is string
-        && request.resource.data.openingHours.size() <= 160
-        && request.resource.data.updatedAt == request.time;
-      allow delete: if false;
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId;
+      
+      match /{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
     }
 
     match /product-insights/{productId} {
       allow read: if true;
-      allow create: if activeUser()
+      allow create: if request.auth != null
         && newInsightMatchesVote(productId)
         && request.resource.data.productId == productId
         && request.resource.data.keys().hasOnly([
@@ -162,7 +90,7 @@ service cloud.firestore {
         && request.resource.data.totalFeedback is int
         && request.resource.data.totalFeedback >= 0
         && request.resource.data.updatedAt is timestamp;
-      allow update: if activeUser()
+      allow update: if request.auth != null
         && updatedInsightMatchesVote(productId)
         && request.resource.data.productId == productId
         && request.resource.data.keys().hasOnly([
@@ -198,8 +126,8 @@ service cloud.firestore {
       allow delete: if false;
 
       match /votes/{userId} {
-        allow read: if request.auth != null && request.auth.uid == userId;
-        allow create, update: if activeUser()
+        allow read: if true;
+        allow create, update: if request.auth != null
           && existsAfter(/databases/$(database)/documents/product-insights/$(productId))
           && getAfter(/databases/$(database)/documents/product-insights/$(productId)).data.updatedAt == request.time
           && request.auth.uid == userId
@@ -223,8 +151,8 @@ service cloud.firestore {
       }
 
       match /surveys/{userId} {
-        allow read: if request.auth != null;
-        allow create, update: if activeUser()
+        allow read: if true;
+        allow create, update: if request.auth != null
           && request.auth.uid == userId
           && request.resource.data.keys().hasOnly(["userId", "bought", "qualityPrice", "updatedAt"])
           && request.resource.data.userId == userId
@@ -242,28 +170,15 @@ service cloud.firestore {
     // Clips compartidos: lectura publica, escritura solo del autor.
     match /clips/{clipId} {
       allow read: if true;
-      allow create: if activeUser()
+      allow create: if request.auth != null
         && request.resource.data.authorId == request.auth.uid
-        && request.resource.data.clip.authorId == request.auth.uid
-        && !request.resource.data.keys().hasAny([
-          "hidden_at", "hidden_by", "hidden_reason", "deleted_at"
-        ])
-        && (!request.resource.data.clip.keys().hasAny(["businessId"])
-          || ownsBusiness(request.resource.data.clip.businessId))
-        && request.resource.data.clip.durationSeconds is number
-        && request.resource.data.clip.durationSeconds > 0
-        && request.resource.data.clip.durationSeconds <= maxClipDuration(request.auth.uid, request.resource.data.clip);
-      allow update: if activeUser()
-        && request.resource.data.authorId == resource.data.authorId
-        && request.resource.data.clip.authorId == resource.data.authorId
-        && resource.data.authorId == request.auth.uid
-        && clipModerationFieldsUnchanged();
-      allow delete: if activeUser()
+        && request.resource.data.clip.authorId == request.auth.uid;
+      allow update, delete: if request.auth != null
         && resource.data.authorId == request.auth.uid;
 
       match /comments/{commentId} {
         allow read: if true;
-        allow create: if activeUser()
+        allow create: if request.auth != null
           && request.resource.data.authorId == request.auth.uid
           && request.resource.data.clipId == clipId
           && request.resource.data.username is string
@@ -274,13 +189,13 @@ service cloud.firestore {
             "authorId", "clipId", "username", "text", "createdAt"
           ]);
         allow update: if false;
-        allow delete: if activeUser()
+        allow delete: if request.auth != null
           && (resource.data.authorId == request.auth.uid || ownsClip(clipId));
       }
 
       match /votes/{userId} {
-        allow read: if request.auth != null;
-        allow create, update: if activeUser()
+        allow read: if true;
+        allow create, update: if request.auth != null
           && request.auth.uid == userId
           && request.resource.data.keys().hasOnly(["adLike", "used", "would", "tried", "updatedAt"])
           && (!request.resource.data.keys().hasAny(["adLike"])
@@ -291,58 +206,58 @@ service cloud.firestore {
             || request.resource.data.would in ["yes", "no"])
           && (!request.resource.data.keys().hasAny(["tried"])
             || request.resource.data.tried in ["verified", "casual", "no"]);
-        allow delete: if activeUser()
+        allow delete: if request.auth != null
           && (request.auth.uid == userId || ownsClip(clipId));
       }
 
       match /saves/{userId} {
-        allow read: if request.auth != null;
-        allow create, update: if activeUser()
+        allow read: if true;
+        allow create, update: if request.auth != null
           && request.auth.uid == userId
           && request.resource.data.keys().hasOnly(["userId", "updatedAt"])
           && request.resource.data.userId == userId;
-        allow delete: if activeUser()
+        allow delete: if request.auth != null
           && (request.auth.uid == userId || ownsClip(clipId));
       }
 
       match /shares/{userId} {
-        allow read: if request.auth != null;
-        allow create, update: if activeUser()
+        allow read: if true;
+        allow create, update: if request.auth != null
           && request.auth.uid == userId
           && request.resource.data.keys().hasOnly(["userId", "updatedAt"])
           && request.resource.data.userId == userId;
-        allow delete: if activeUser()
+        allow delete: if request.auth != null
           && (request.auth.uid == userId || ownsClip(clipId));
       }
 
       match /views/{eventId} {
-        allow read: if ownsClip(clipId);
-        allow create, update: if activeUser()
-          && eventId == request.auth.uid
+        allow read: if true;
+        allow create: if request.auth != null
           && request.resource.data.keys().hasOnly(["userId", "createdAt"])
           && request.resource.data.userId == request.auth.uid
           && request.resource.data.createdAt == request.time;
-        allow delete: if activeUser() && ownsClip(clipId);
+        allow update: if false;
+        allow delete: if request.auth != null && ownsClip(clipId);
       }
 
       match /detailViews/{eventId} {
-        allow read: if ownsClip(clipId);
-        allow create: if activeUser()
+        allow read: if true;
+        allow create: if request.auth != null
           && request.resource.data.keys().hasOnly(["userId", "createdAt"])
           && request.resource.data.userId == request.auth.uid
           && request.resource.data.createdAt == request.time;
         allow update: if false;
-        allow delete: if activeUser() && ownsClip(clipId);
+        allow delete: if request.auth != null && ownsClip(clipId);
       }
 
       match /conversionClicks/{eventId} {
-        allow read: if ownsClip(clipId);
-        allow create: if activeUser()
+        allow read: if true;
+        allow create: if request.auth != null
           && request.resource.data.keys().hasOnly(["userId", "createdAt"])
           && request.resource.data.userId == request.auth.uid
           && request.resource.data.createdAt == request.time;
         allow update: if false;
-        allow delete: if activeUser() && ownsClip(clipId);
+        allow delete: if request.auth != null && ownsClip(clipId);
       }
     }
   }
