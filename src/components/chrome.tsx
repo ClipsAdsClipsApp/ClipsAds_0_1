@@ -14,7 +14,7 @@ import type { Tab } from "@/lib/types";
 export function LogoMark({ size = 38 }: { size?: number }) {
   return (
     <img
-      src="/logo.png"
+      src="/logo.jpg"
       alt="ClipsApp"
       width={size}
       height={size}
