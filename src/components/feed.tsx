@@ -349,7 +349,7 @@ function ClipOverlay({ clip, active }: { clip: Clip; active: boolean }) {
         </Action>
       </div>
 
-      <div className="absolute inset-x-3 bottom-[62px] z-10 rounded-[16px] border border-line bg-[#121218]/31 px-2.5 py-1 backdrop-blur-xl">
+      <div className="absolute inset-x-3 bottom-[62px] z-10 rounded-[16px] border border-line bg-[#121218]/31 px-2 py-0.5 backdrop-blur-xl">
         <button
           type="button"
           className="w-full text-left"
@@ -362,17 +362,17 @@ function ClipOverlay({ clip, active }: { clip: Clip; active: boolean }) {
             openSheet("product", clip.id);
           }}
         >
-          <div className="truncate font-display text-[12px] font-extrabold leading-tight">
+          <div className="truncate font-display text-[11px] font-extrabold leading-tight">
             {product.name}
           </div>
-          <div className="truncate text-[9px] text-muted">
+          <div className="truncate text-[8px] text-muted">
             {product.brand} · {formatPrice(product.price, product.currency)}
             {product.city ? ` · ${product.city}` : ""}
           </div>
         </button>
 
-        <div className="mt-1 flex items-center gap-1">
-          <p className="min-w-0 flex-1 text-[9px] font-extrabold leading-tight">
+        <div className="mt-0.5 flex items-center gap-1">
+          <p className="min-w-0 flex-1 text-[8px] font-extrabold leading-tight">
             ¿Te gusta este anuncio?
           </p>
           <AdVote
@@ -391,15 +391,15 @@ function ClipOverlay({ clip, active }: { clip: Clip; active: boolean }) {
           />
         </div>
 
-        <div className="mt-1 flex items-center gap-1">
-          <p className="min-w-0 flex-1 text-[9px] font-extrabold leading-tight">
+        <div className="mt-0.5 flex items-center gap-1">
+          <p className="min-w-0 flex-1 text-[8px] font-extrabold leading-tight">
             ¿Lo usarías?
           </p>
           <Choice label={`Sí ${clipVotes?.usedYes ?? 0} · ${usedYesPct}%`} on={usedYes} onClick={() => setUsed(clip.id, "yes")} />
           <Choice label={`No ${clipVotes?.usedNo ?? 0} · ${usedNoPct}%`} on={usedNo} onClick={() => setUsed(clip.id, "no")} />
         </div>
 
-        <div className="mt-1 flex justify-between gap-2 text-[8px] font-semibold text-muted">
+        <div className="mt-0.5 flex justify-between gap-2 text-[7px] font-semibold text-muted">
           <span>Compraron {productSurvey.boughtYes}/{boughtTotal} · Comprarían {wouldYes}/{wouldTotal}</span>
           <span>Verificados {clipVotes?.verified ?? 0}</span>
         </div>
@@ -414,7 +414,7 @@ function ClipOverlay({ clip, active }: { clip: Clip; active: boolean }) {
             }
             openSheet("cta", clip.id);
           }}
-          className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-gradient-to-br from-mint to-cyan py-1 text-[11px] font-extrabold text-bg"
+          className="mt-0.5 flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-gradient-to-br from-mint to-cyan py-0.5 text-[10px] font-extrabold text-bg"
         >
           <CtaIcon kind={product.cta} />
           {product.ctaLabel}
