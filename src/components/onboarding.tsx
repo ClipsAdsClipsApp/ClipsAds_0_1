@@ -29,9 +29,9 @@ const GENDERS: { id: Gender; label: string }[] = [
   { id: "prefer_not", label: "Prefiero no decirlo" },
 ];
 const ROLES: { id: Role; label: string; hint: string }[] = [
-  { id: "user", label: "Usuario", hint: "Descubrir y compartir" },
-  { id: "creator", label: "Creador", hint: "Crear y colaborar gratis" },
-  { id: "business", label: "Negocio local", hint: "Mostrar productos y servicios" },
+  { id: "user", label: "Usuario", hint: "Descubrir y opinar" },
+  { id: "creator", label: "Creador", hint: "Publicar reseñas" },
+  { id: "business", label: "Empresa", hint: "Llegar a tu barrio" },
 ];
 
 export function Onboarding({ session }: { session?: AppUser | null }) {
@@ -177,7 +177,6 @@ export function Onboarding({ session }: { session?: AppUser | null }) {
           city,
           avatarUrl: session?.profileImageUrl || "",
           role,
-          creatorMode: role === "creator",
         },
       });
       const user: UserProfile = {
@@ -188,7 +187,6 @@ export function Onboarding({ session }: { session?: AppUser | null }) {
         phone: saved.phone || "",
         avatarUrl: saved.avatarUrl || "",
         role: saved.role as Role,
-        creatorMode: saved.creatorMode ?? saved.role === "creator",
         bio: saved.bio,
         ageRange,
         gender,

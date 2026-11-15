@@ -17,21 +17,8 @@ export type SavedProfile = {
   city: string;
   avatarUrl: string;
   role: string;
-  creatorMode?: boolean;
-  businessId?: string;
-  accountMode?: "personal" | "business";
   stripeAccountId?: string;
 };
-
-export async function getMyAccountStatus(userId: string): Promise<{ blocked: boolean; reason: string }> {
-  if (!firebaseConfigured) return { blocked: false, reason: "" };
-  const snapshot = await getDoc(doc(getFirebaseFirestore(), "user_status", userId));
-  const status = snapshot.data();
-  return {
-    blocked: status?.blocked === true,
-    reason: typeof status?.reason === "string" ? status.reason : "",
-  };
-}
 
 export async function getMyProfile(): Promise<SavedProfile | null> {
   if (!firebaseConfigured) return null;
@@ -53,9 +40,6 @@ export async function saveMyProfile({ data: input }: { data: {
     city: string;
     avatarUrl: string;
     role: string;
-    creatorMode?: boolean;
-    businessId?: string;
-    accountMode?: "personal" | "business";
     stripeAccountId?: string;
   } }): Promise<SavedProfile> {
   const user = getFirebaseAuth().currentUser;
@@ -70,9 +54,6 @@ export async function saveMyProfile({ data: input }: { data: {
     city: input.city.trim().slice(0, 40) || "Parla",
     avatarUrl: input.avatarUrl.slice(0, 350_000),
     role: ["user", "creator", "business"].includes(input.role) ? input.role : "user",
-    ...(input.creatorMode !== undefined ? { creatorMode: input.creatorMode } : {}),
-    ...(input.businessId ? { businessId: input.businessId } : {}),
-    ...(input.accountMode ? { accountMode: input.accountMode } : {}),
     ...(input.stripeAccountId ? { stripeAccountId: input.stripeAccountId } : {}),
     ...(input.ageRange ? { ageRange: input.ageRange } : {}),
   };

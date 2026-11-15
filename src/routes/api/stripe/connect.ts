@@ -2,7 +2,6 @@ import Stripe from "stripe";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   authenticateFirebaseRequest,
-  getStripeRedirectOrigin,
   getStripeClient,
   readFirestoreDocument,
   saveStripeAccountId,
@@ -52,7 +51,7 @@ export const Route = createFileRoute("/api/stripe/connect")({
             return Response.json({ ready: true, stripeAccountId: account.id });
           }
 
-          const appOrigin = getStripeRedirectOrigin(request);
+          const appOrigin = new URL(request.url).origin;
           const accountLink = await stripe.accountLinks.create({
             account: account.id,
             type: "account_onboarding",

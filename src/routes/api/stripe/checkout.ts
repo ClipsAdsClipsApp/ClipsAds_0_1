@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import {
   authenticateFirebaseRequest,
   CheckoutRequestError,
-  getStripeRedirectOrigin,
   getStripeClient,
   readFirestoreDocument,
   StripeSetupError,
@@ -65,7 +64,7 @@ export const Route = createFileRoute("/api/stripe/checkout")({
             throw new CheckoutRequestError("El vendedor aún no está habilitado para recibir pagos.");
           }
 
-          const origin = getStripeRedirectOrigin(request);
+          const origin = new URL(request.url).origin;
           const session = await stripe.checkout.sessions.create({
             mode: "payment",
             line_items: [

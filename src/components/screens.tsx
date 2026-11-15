@@ -20,8 +20,7 @@ import { UserButton } from "@/lib/auth/gates";
 import { openCookieSettings } from "@/components/cookie-consent";
 import { changePassword, signOut } from "@/lib/firebase/auth";
 import { firebaseConfigured, getFirebaseAuth } from "@/lib/firebase/client";
-import { getOwnedClipEventCounts, subscribeClipCounts, subscribeMySharedClips, type ClipCounts, type SharedAuthor, type SharedClipDoc } from "@/lib/firebase/clips";
-import { getMyBusiness, saveMyBusiness, type BusinessProfileInput, type BusinessWorkspace } from "@/lib/business";
+import { subscribeClipCounts, subscribeMySharedClips, type ClipCounts, type SharedClipDoc } from "@/lib/firebase/clips";
 import { saveMyProfile } from "@/lib/profile";
 
 export function Explore() {
@@ -256,7 +255,6 @@ export function CreateClip() {
   const publishClip = useApp((s) => s.publishClip);
   const [fileUrl, setFileUrl] = useState<string>();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [videoDuration, setVideoDuration] = useState<number | null>(null);
   const [posterUrl, setPosterUrl] = useState<string>();
   const [photoUrl, setPhotoUrl] = useState<string>();
   const [photoError, setPhotoError] = useState<string | null>(null);
@@ -279,42 +277,13 @@ export function CreateClip() {
   const [offerDetails, setOfferDetails] = useState("");
   const [sizeOptionsText, setSizeOptionsText] = useState("");
   const [address, setAddress] = useState("");
-  const creatorEnabled = user?.creatorMode ?? user?.role === "creator";
-  const isBusinessMode = user?.accountMode === "business" && Boolean(user.businessId);
-  const maxVideoSeconds = isBusinessMode || creatorEnabled ? 35 : 10;
-  const [businessWorkspace, setBusinessWorkspace] = useState<BusinessWorkspace | null>(null);
 
   useEffect(() => () => {
     if (fileUrl) URL.revokeObjectURL(fileUrl);
   }, [fileUrl]);
 
-  useEffect(() => {
-    if (!isBusinessMode || !user?.businessId) {
-      setBusinessWorkspace(null);
-      return;
-    }
-    let active = true;
-    void getMyBusiness(user.businessId).then((workspace) => {
-      if (active) setBusinessWorkspace(workspace);
-    }).catch((error: unknown) => {
-      console.error("[firebase] Could not load publishing business.", error);
-      if (active) setBusinessWorkspace(null);
-    });
-    return () => {
-      active = false;
-    };
-  }, [isBusinessMode, user?.businessId]);
-
   async function submitClip() {
     if (!selectedFile || !name.trim()) return;
-    if (videoDuration === null) {
-      setUploadError("Espera a que termine de leerse la duración del vídeo.");
-      return;
-    }
-    if (videoDuration > maxVideoSeconds) {
-      setUploadError(`Este perfil permite clips de hasta ${maxVideoSeconds} segundos.`);
-      return;
-    }
     if (cta === "directions" && !address.trim()) {
       setUploadError("Indica la dirección del local para el botón Cómo llegar.");
       return;
@@ -342,9 +311,6 @@ export function CreateClip() {
       const firebaseUser = getFirebaseAuth().currentUser;
       if (!firebaseUser || firebaseUser.uid !== user?.id) {
         throw new Error("Inicia sesión de nuevo antes de subir un video.");
-      }
-      if (isBusinessMode && !businessWorkspace) {
-        throw new Error("No se pudo cargar el espacio comercial. Vuelve a seleccionarlo desde el perfil.");
       }
       const maxVideoBytes = 100 * 1024 * 1024;
       if (selectedFile.size > maxVideoBytes) {
@@ -385,8 +351,6 @@ export function CreateClip() {
         {
           id,
           videoUrl: blob.url,
-          durationSeconds: videoDuration,
-          ...(businessWorkspace ? { businessId: businessWorkspace.id } : {}),
           posterUrl: posterUrl ?? photoUrl ?? "",
           caption: caption || name,
           authorId: firebaseUser.uid,
@@ -443,16 +407,6 @@ export function CreateClip() {
           alternatives: [],
           where: [brand.trim() || "Local"],
         },
-        businessWorkspace
-          ? {
-              username: `negocio-${user?.username ?? "local"}`,
-              displayName: businessWorkspace.name,
-              avatarUrl: user?.avatarUrl ?? "",
-              role: "business",
-              city: businessWorkspace.city,
-              stripeAccountId: user?.stripeAccountId,
-            }
-          : undefined,
       );
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : "No se pudo subir el video.");
@@ -465,11 +419,7 @@ export function CreateClip() {
     <div className="relative flex h-full flex-col bg-bg">
       <header className="px-4 pt-[calc(18px+env(safe-area-inset-top))]">
         <h1 className="font-display text-2xl font-bold">Publicar clip</h1>
-        <p className="text-xs text-muted">
-          {isBusinessMode
-            ? `Publicas como ${businessWorkspace?.name ?? "tu negocio"} · máximo ${maxVideoSeconds} s.`
-            : `${creatorEnabled ? "Modo creador" : "Perfil personal"} · máximo ${maxVideoSeconds} s. Etiqueta el producto y declara si hay colaboración.`}
-        </p>
+        <p className="text-xs text-muted">Etiqueta el producto y declara si hay colaboración.</p>
       </header>
       <div className="scrollbar-none flex-1 overflow-y-auto px-4 pb-24 pt-3">
         <label className="mb-3 flex h-44 cursor-pointer items-center justify-center overflow-hidden rounded-2xl border border-dashed border-cyan/40 bg-surface">
@@ -494,34 +444,16 @@ export function CreateClip() {
               const f = e.target.files?.[0];
               if (!f) return;
               setSelectedFile(f);
-              setVideoDuration(null);
               const url = URL.createObjectURL(f);
               setFileUrl(url);
               setPosterUrl(undefined);
               void captureFrame(url).then(setPosterUrl);
-              const metadataUrl = URL.createObjectURL(f);
-              const probe = document.createElement("video");
-              probe.preload = "metadata";
-              probe.onloadedmetadata = () => {
-                setVideoDuration(Number.isFinite(probe.duration) ? probe.duration : null);
-                URL.revokeObjectURL(metadataUrl);
-              };
-              probe.onerror = () => {
-                setVideoDuration(null);
-                URL.revokeObjectURL(metadataUrl);
-              };
-              probe.src = metadataUrl;
             }}
           />
         </label>
         {selectedFile ? (
           <p className="mb-3 truncate text-xs text-muted">
-            {selectedFile.name} · {(selectedFile.size / (1024 * 1024)).toFixed(1)} MB · máx. {maxVideoSeconds} s
-          </p>
-        ) : null}
-        {videoDuration !== null && videoDuration > maxVideoSeconds ? (
-          <p role="alert" className="mb-3 text-xs text-danger">
-            El vídeo dura {videoDuration.toFixed(1)} s. Este perfil permite hasta {maxVideoSeconds} s.
+            {selectedFile.name} · {(selectedFile.size / (1024 * 1024)).toFixed(1)} MB
           </p>
         ) : null}
         <Field label="Producto" value={name} onChange={setName} placeholder="Nombre del producto" />
@@ -697,7 +629,7 @@ export function CreateClip() {
         ) : null}
         <button
           type="button"
-          disabled={!name.trim() || !selectedFile || videoDuration === null || videoDuration > maxVideoSeconds || uploading}
+          disabled={!name.trim() || !selectedFile || uploading}
           onClick={() => void submitClip()}
           className="w-full rounded-[15px] bg-gradient-to-br from-cyan to-mint py-3.5 text-sm font-extrabold text-bg disabled:opacity-40"
         >
@@ -883,7 +815,7 @@ export function Profile() {
   const saved = useApp((s) => s.saved);
   const following = useApp((s) => s.following);
   const toastMsg = useApp((s) => s.toastMsg);
-  const [panel, setPanel] = useState<"profile" | "creator" | "business">("profile");
+  const [panel, setPanel] = useState<"profile" | "business">("profile");
   const [displayName, setDisplayName] = useState(user?.displayName ?? "");
   const [bio, setBio] = useState(user?.bio ?? "");
   const [saving, setSaving] = useState(false);
@@ -894,42 +826,9 @@ export function Profile() {
   const [passwordBusy, setPasswordBusy] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordNotice, setPasswordNotice] = useState<string | null>(null);
-  const [businessWorkspace, setBusinessWorkspace] = useState<BusinessWorkspace | null>(null);
-  const [businessProfile, setBusinessProfile] = useState<BusinessProfileInput>({
-    name: user?.displayName ?? "",
-    city: user?.city ?? "",
-    address: "",
-    openingHours: "",
-  });
-  const [businessSaving, setBusinessSaving] = useState(false);
-  const [businessError, setBusinessError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (!user) return;
-    let active = true;
-    void getMyBusiness(user.businessId).then((workspace) => {
-      if (!active) return;
-      setBusinessWorkspace(workspace);
-      if (workspace) {
-        setBusinessProfile({
-          name: workspace.name,
-          city: workspace.city,
-          address: workspace.address,
-          openingHours: workspace.openingHours,
-        });
-      }
-    }).catch((error: unknown) => {
-      console.error("[firebase] Could not load business workspace.", error);
-      if (active) setBusinessError("No se pudo cargar el espacio comercial.");
-    });
-    return () => {
-      active = false;
-    };
-  }, [user?.id, user?.businessId]);
-
   if (!user) return null;
-  const creatorEnabled = user.creatorMode ?? user.role === "creator";
 
   async function persist(patch: Partial<UserProfile>) {
     if (!user) return;
@@ -945,9 +844,6 @@ export function Profile() {
           city: next.city,
           avatarUrl: next.avatarUrl,
           role: next.role,
-          creatorMode: next.creatorMode,
-          businessId: next.businessId,
-          accountMode: next.accountMode,
           ageRange: next.ageRange,
           stripeAccountId: next.stripeAccountId,
         },
@@ -957,39 +853,6 @@ export function Profile() {
       toastMsg("No se pudo guardar");
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function saveBusinessWorkspace() {
-    if (!user) return;
-    setBusinessSaving(true);
-    setBusinessError(null);
-    try {
-      const workspace = await saveMyBusiness(businessProfile);
-      await saveMyProfile({
-        data: {
-          username: user.username,
-          displayName: user.displayName,
-          bio: user.bio ?? "",
-          city: user.city,
-          avatarUrl: user.avatarUrl,
-          role: user.role,
-          creatorMode: user.creatorMode,
-          businessId: workspace.id,
-          accountMode: "business",
-          stripeAccountId: user.stripeAccountId,
-        },
-      });
-      updateUser({ businessId: workspace.id, accountMode: "business" });
-      setBusinessWorkspace(workspace);
-      setPanel("business");
-      toastMsg("Espacio comercial guardado");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "No se pudo guardar el espacio comercial.";
-      setBusinessError(message);
-      toastMsg(message);
-    } finally {
-      setBusinessSaving(false);
     }
   }
 
@@ -1075,7 +938,7 @@ export function Profile() {
           <div>
             <h1 className="font-display text-xl font-bold">@{user.username}</h1>
             <p className="text-xs text-muted">
-              {user.city} · {user.role === "business" ? "Negocio local" : user.role === "creator" ? "Creador" : "Usuario"}
+              {user.city} · {user.role}
             </p>
           </div>
         </div>
@@ -1084,47 +947,14 @@ export function Profile() {
           <Stat n={saved.length} label="Guardados" />
           <Stat n={following.length} label="Siguiendo" />
         </div>
-        {creatorEnabled || businessWorkspace ? (
-          <div role="group" aria-label="Cambiar vista del perfil" className="mt-3 flex gap-1 rounded-[14px] bg-fg/5 p-1">
-            <button
-              type="button"
-              aria-pressed={panel === "profile"}
-              onClick={() => {
-                setPanel("profile");
-                if (user.accountMode !== "personal") void persist({ accountMode: "personal" });
-              }}
-              className={cn("min-h-11 flex-1 rounded-xl px-3 text-xs font-bold", panel === "profile" ? "bg-surface text-fg" : "text-muted")}
-            >
-              Personal
-            </button>
-            {creatorEnabled ? (
-              <button
-                type="button"
-                aria-pressed={panel === "creator"}
-                onClick={() => {
-                  setPanel("creator");
-                  if (user.accountMode !== "personal") void persist({ accountMode: "personal" });
-                }}
-                className={cn("min-h-11 flex-1 rounded-xl px-3 text-xs font-bold", panel === "creator" ? "bg-surface text-fg" : "text-muted")}
-              >
-                Centro de creadores
-              </button>
-            ) : null}
-            {businessWorkspace ? (
-              <button
-                type="button"
-                aria-pressed={panel === "business"}
-                onClick={() => {
-                  setPanel("business");
-                  if (user.accountMode !== "business") void persist({ accountMode: "business" });
-                }}
-                className={cn("min-h-11 flex-1 rounded-xl px-3 text-xs font-bold", panel === "business" ? "bg-surface text-fg" : "text-muted")}
-              >
-                Mi negocio
-              </button>
-            ) : null}
-          </div>
-        ) : null}
+        <div className="mt-3 flex gap-1 rounded-[14px] bg-fg/5 p-1">
+          <Chip on={panel === "profile"} onClick={() => setPanel("profile")}>
+            Perfil
+          </Chip>
+          <Chip on={panel === "business"} onClick={() => setPanel("business")}>
+            Empresa
+          </Chip>
+        </div>
       </header>
       <div className="scrollbar-none flex-1 overflow-y-auto px-4 pb-24 pt-4">
         {panel === "profile" ? (
@@ -1176,60 +1006,6 @@ export function Profile() {
                 );
               })}
             </div>
-            <section className="mb-4 border-y border-line py-3">
-              <h2 className="mb-2 text-sm font-bold">Actividad</h2>
-              <p className="text-xs text-muted">{saved.length} productos guardados</p>
-              <div className="mt-3 border-t border-line pt-3">
-                <h3 className="text-xs font-bold">Compras y reservas</h3>
-                <p className="mt-1 text-xs text-muted">El historial de pedidos y reservas todavía no está disponible.</p>
-              </div>
-            </section>
-            {!creatorEnabled ? (
-              <section className="mb-4 border-b border-line py-3">
-                <h2 className="text-sm font-bold">Modo creador</h2>
-                <p className="mt-1 text-xs text-muted">Actívalo gratis para ver tus métricas y gestionar colaboraciones desde el Centro de creadores.</p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    void persist({ creatorMode: true });
-                    setPanel("creator");
-                  }}
-                  className="mt-3 min-h-11 rounded-xl bg-cyan px-4 text-xs font-bold text-bg"
-                >
-                  Activar modo creador
-                </button>
-              </section>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  void persist({ creatorMode: false });
-                  setPanel("profile");
-                }}
-                className="mt-4 min-h-11 w-full rounded-xl border border-line px-3 text-left text-xs font-semibold text-muted"
-              >
-                Desactivar modo creador
-              </button>
-            )}
-            {!businessWorkspace ? (
-              <section className="mb-4 border-b border-line py-3">
-                <h2 className="text-sm font-bold">Espacio comercial</h2>
-                <p className="mt-1 text-xs text-muted">Crea un espacio separado de tu perfil personal. Empieza con el plan Básico, sin cuota fija.</p>
-                <Field label="Nombre del negocio" value={businessProfile.name} onChange={(name) => setBusinessProfile((current) => ({ ...current, name }))} placeholder="Mi negocio" />
-                <Field label="Ciudad" value={businessProfile.city} onChange={(city) => setBusinessProfile((current) => ({ ...current, city }))} placeholder="Ciudad" />
-                <Field label="Dirección (opcional)" value={businessProfile.address} onChange={(address) => setBusinessProfile((current) => ({ ...current, address }))} placeholder="Calle y número" />
-                <Field label="Horario (opcional)" value={businessProfile.openingHours} onChange={(openingHours) => setBusinessProfile((current) => ({ ...current, openingHours }))} placeholder="Lun-Vie, 9:00-18:00" />
-                {businessError ? <p role="alert" className="mb-2 text-xs text-danger">{businessError}</p> : null}
-                <button
-                  type="button"
-                  disabled={businessSaving || !businessProfile.name.trim() || !businessProfile.city.trim()}
-                  onClick={() => void saveBusinessWorkspace()}
-                  className="min-h-11 rounded-xl bg-cyan px-4 text-xs font-bold text-bg disabled:opacity-40"
-                >
-                  {businessSaving ? "Guardando…" : "Crear espacio comercial"}
-                </button>
-              </section>
-            ) : null}
             <PrivacyRow
               icon={<IconShield size={18} />}
               title="Personalización publicitaria"
@@ -1327,18 +1103,7 @@ export function Profile() {
             {saving ? <p className="mt-2 text-center text-[11px] text-muted">Guardando…</p> : null}
           </>
         ) : (
-          <BusinessPanel
-            mode={panel === "creator" ? "creator" : "business"}
-            workspace={businessWorkspace}
-            businessProfile={businessProfile}
-            onBusinessProfileChange={setBusinessProfile}
-            onSaveBusiness={() => void saveBusinessWorkspace()}
-            businessSaving={businessSaving}
-            onDisableCreatorMode={() => {
-              void persist({ creatorMode: false });
-              setPanel("profile");
-            }}
-          />
+          <BusinessPanel />
         )}
       </div>
       <BottomNav />
@@ -1381,23 +1146,7 @@ function PrivacyRow({
   );
 }
 
-function BusinessPanel({
-  mode,
-  workspace,
-  businessProfile,
-  onBusinessProfileChange,
-  onSaveBusiness,
-  businessSaving,
-  onDisableCreatorMode,
-}: {
-  mode: "creator" | "business";
-  workspace: BusinessWorkspace | null;
-  businessProfile: BusinessProfileInput;
-  onBusinessProfileChange: (input: BusinessProfileInput) => void;
-  onSaveBusiness: () => void;
-  businessSaving: boolean;
-  onDisableCreatorMode: () => void;
-}) {
+function BusinessPanel() {
   const userId = useApp((state) => state.user?.id);
   const setTab = useApp((state) => state.setTab);
   const setActiveClip = useApp((state) => state.setActiveClip);
@@ -1413,9 +1162,8 @@ function BusinessPanel({
       userId,
       setPublished,
       (error) => console.error("[firebase] Could not load business clips.", error),
-      mode === "creator" ? "personal" : "business",
     );
-  }, [mode, userId]);
+  }, [userId]);
 
   const clipIds = useMemo(() => published.map((entry) => entry.clip.id), [published]);
 
@@ -1425,37 +1173,9 @@ function BusinessPanel({
       return;
     }
     let active = true;
-    void Promise.all(
-      published.map(async ({ clip }) => [clip.id, await getOwnedClipEventCounts(clip.id)] as const),
-    ).then((eventCounts) => {
-      if (!active) return;
-      setCounts((current) => ({
-        ...current,
-        ...Object.fromEntries(
-          eventCounts.map(([clipId, events]) => [clipId, { ...current[clipId], ...events }]),
-        ),
-      }));
-    }).catch((error: unknown) => {
-      console.error("[firebase] Could not load private aggregate event metrics.", error);
-    });
     const unsubscribe = clipIds.map((clipId) =>
       subscribeClipCounts(clipId, (next) => {
-        if (active) {
-          setCounts((current) => ({
-            ...current,
-            [clipId]: {
-              ...(current[clipId] ?? {
-                comments: 0,
-                saves: 0,
-                shares: 0,
-                views: 0,
-                detailViews: 0,
-                conversionClicks: 0,
-              }),
-              ...next,
-            },
-          }));
-        }
+        if (active) setCounts((current) => ({ ...current, [clipId]: next }));
       }, (error) => {
         console.error("[firebase] Could not load business metrics.", error);
       }),
@@ -1480,32 +1200,15 @@ function BusinessPanel({
   const metrics = [
     { k: "Reproducciones", v: totals.views },
     { k: "Guardados", v: totals.saves },
-    { k: "Visitas a ficha", v: totals.detailViews },
-    { k: "Clics en CTA", v: totals.conversionClicks },
+    { k: "Clics a ficha", v: totals.detailViews },
+    { k: "Clics reserva/compra", v: totals.conversionClicks },
   ];
   return (
     <div>
       <div className="mb-3 flex items-center gap-2 text-sm font-bold">
-        <IconChart size={16} className="text-cyan" />
-        {mode === "creator"
-          ? "Centro de creadores"
-          : `Mi negocio · Plan ${workspace?.plan === "pro" ? "Pro" : "Básico"}`}
+        <IconChart size={16} className="text-cyan" /> Panel de comercio
       </div>
-      {mode === "business" ? (
-        <>
-          <section className="mb-4 border-y border-line py-3">
-            <h3 className="mb-2 text-sm font-bold">Perfil del negocio</h3>
-            <Field label="Nombre" value={businessProfile.name} onChange={(name) => onBusinessProfileChange({ ...businessProfile, name })} placeholder="Mi negocio" />
-            <Field label="Ciudad" value={businessProfile.city} onChange={(city) => onBusinessProfileChange({ ...businessProfile, city })} placeholder="Ciudad" />
-            <Field label="Dirección" value={businessProfile.address} onChange={(address) => onBusinessProfileChange({ ...businessProfile, address })} placeholder="Calle y número" />
-            <Field label="Horario" value={businessProfile.openingHours} onChange={(openingHours) => onBusinessProfileChange({ ...businessProfile, openingHours })} placeholder="Lun-Vie, 9:00-18:00" />
-            <button type="button" disabled={businessSaving} onClick={onSaveBusiness} className="min-h-11 rounded-xl border border-line px-4 text-xs font-bold disabled:opacity-40">
-              {businessSaving ? "Guardando…" : "Guardar perfil del negocio"}
-            </button>
-          </section>
-          <StripeConnectCard />
-        </>
-      ) : null}
+      <StripeConnectCard />
       <div className="mb-4 grid grid-cols-2 gap-2">
         {metrics.map((m) => (
           <div key={m.k} className="rounded-2xl border border-line bg-surface p-3">
@@ -1515,30 +1218,10 @@ function BusinessPanel({
         ))}
       </div>
       <p className="mt-4 text-xs text-muted">
-        {mode === "creator"
-          ? "Estas métricas corresponden a tus clips publicados. No incluyen datos personales de quienes los vieron."
-          : "Reproducciones y clics son eventos, no ventas confirmadas. Los pedidos, comisiones y liquidaciones aún no se gestionan aquí."}
+        Reproducciones y clics son eventos; compras y reservas completadas se confirman por separado.
       </p>
-      {mode === "creator" ? (
-        <section className="mt-5 border-y border-line py-3">
-          <h3 className="mb-2 text-sm font-bold">Colaboraciones</h3>
-          <p className="py-2 text-xs text-muted">Aquí aparecerán tus propuestas, entregables y colaboraciones aceptadas.</p>
-          <p className="border-t border-line py-2 text-xs text-muted">Los cobros por colaboraciones y afiliación todavía no están disponibles.</p>
-          <button type="button" onClick={onDisableCreatorMode} className="mt-3 min-h-11 text-xs font-semibold text-muted">
-            Desactivar modo creador
-          </button>
-        </section>
-      ) : (
-        <section className="mt-5 border-y border-line py-3">
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="text-sm font-bold">Herramientas Pro</h3>
-            <span className="text-[10px] font-bold text-muted">Próximamente</span>
-          </div>
-          <p className="mt-1 text-xs text-muted">Sin cuota fija. La comisión solo se aplicará a ventas gestionadas por ClipsApp cuando esté configurada. Pro incluirá campañas, equipo y analítica ampliada; la suscripción aún no está disponible.</p>
-        </section>
-      )}
       <section className="mt-5">
-        <h3 className="mb-2 text-sm font-bold">{mode === "creator" ? "Tu contenido publicado" : "Clips de tu negocio"}</h3>
+        <h3 className="mb-2 text-sm font-bold">Mis clips publicados</h3>
         {published.length === 0 ? (
           <p className="py-6 text-center text-xs text-muted">Todavía no has publicado clips.</p>
         ) : (
@@ -1669,3 +1352,4 @@ function StripeConnectCard() {
     </section>
   );
 }
+

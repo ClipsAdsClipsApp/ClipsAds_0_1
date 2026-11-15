@@ -9,7 +9,6 @@ dist
 .env
 *.log
 .env*
-llave.txt
 android/.gradle/
 android/local.properties
 android/**/build/

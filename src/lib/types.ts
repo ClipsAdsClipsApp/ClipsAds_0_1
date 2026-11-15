@@ -1,6 +1,4 @@
 export type Role = "user" | "creator" | "business";
-export type BusinessPlan = "basic" | "pro";
-export type AccountMode = "personal" | "business";
 export type Gender = "woman" | "man" | "nonbinary" | "prefer_not";
 export type AgeRange = "14-17" | "18-24" | "25-34" | "35-44" | "45-54" | "55+";
 export type Currency = "EUR" | "USD";
@@ -56,9 +54,6 @@ export interface UserProfile {
   phone?: string;
   avatarUrl: string;
   role: Role;
-  creatorMode?: boolean;
-  businessId?: string;
-  accountMode?: AccountMode;
   bio: string;
   ageRange: AgeRange;
   gender: Gender;
@@ -129,8 +124,6 @@ export interface Comment {
 export interface Clip {
   id: string;
   videoUrl?: string;
-  durationSeconds?: number;
-  businessId?: string;
   posterUrl: string;
   caption: string;
   authorId: string;

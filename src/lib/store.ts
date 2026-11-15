@@ -19,7 +19,6 @@ import {
   type ClipCounts,
   recordClipShare,
   setClipSaved,
-  type SharedAuthor,
   type SharedClipDoc,
 } from "@/lib/firebase/clips";
 import { remoteCreators } from "@/lib/creators-registry";
@@ -84,7 +83,7 @@ interface AppState extends Persisted {
   remote: SharedClipDoc[];
   clipVotes: Record<string, ClipVoteSummary>;
   clipCounts: Record<string, ClipCounts>;
-  setClipCounts: (clipId: string, counts: Pick<ClipCounts, "comments" | "saves" | "shares">) => void;
+  setClipCounts: (clipId: string, counts: ClipCounts) => void;
   setRemote: (docs: SharedClipDoc[]) => void;
   setClipVotes: (clipId: string, summary: ClipVoteSummary) => void;
   setSharedComments: (clipId: string, comments: Comment[]) => void;
@@ -120,7 +119,7 @@ interface AppState extends Persisted {
   deletePublishedClip: (clipId: string) => Promise<void>;
   deleteAllPublishedClips: () => Promise<void>;
   shareClip: (clipId: string) => Promise<void>;
-  publishClip: (clip: Clip, product?: Product, author?: SharedAuthor) => void;
+  publishClip: (clip: Clip, product?: Product) => void;
 }
 
 function save(part: Persisted) {
@@ -179,22 +178,7 @@ export const useApp = create<AppState>((set, get) => ({
   clipVotes: {},
   clipCounts: {},
   setClipCounts: (clipId, counts) =>
-    set((s) => ({
-      clipCounts: {
-        ...s.clipCounts,
-        [clipId]: {
-          ...(s.clipCounts[clipId] ?? {
-            comments: 0,
-            saves: 0,
-            shares: 0,
-            views: 0,
-            detailViews: 0,
-            conversionClicks: 0,
-          }),
-          ...counts,
-        },
-      },
-    })),
+    set((s) => ({ clipCounts: { ...s.clipCounts, [clipId]: counts } })),
   tab: "home",
   feedMode: "for-you",
   activeClipId: "",
@@ -587,7 +571,7 @@ export const useApp = create<AppState>((set, get) => ({
     }
   },
 
-  publishClip: (clip, product, authorOverride) => {
+  publishClip: (clip, product) => {
     const user = get().user;
     const located: Clip = { ...clip, country: user?.country, province: user?.province };
     set({
@@ -604,7 +588,7 @@ export const useApp = create<AppState>((set, get) => ({
         authorId: user.id,
         clip: located,
         product,
-        author: authorOverride ?? {
+        author: {
           username: user.username,
           displayName: user.displayName,
           avatarUrl: avatar && !avatar.startsWith("/avatars/") ? avatar : "",
