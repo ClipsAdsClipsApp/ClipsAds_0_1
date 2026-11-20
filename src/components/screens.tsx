@@ -1086,6 +1086,12 @@ export function Profile() {
                 </button>
               </form>
             ) : null}
+            <a
+              href="/pricing"
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-[14px] border border-cyan bg-cyan/10 py-3 text-sm font-bold text-cyan hover:bg-cyan/20 transition-colors"
+            >
+              <CreditCard size={16} /> Ver planes de suscripción
+            </a>
             <button
               type="button"
               onClick={() => {
