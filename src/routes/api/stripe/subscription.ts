@@ -59,6 +59,52 @@ export const Route = createFileRoute("/api/stripe/subscription")({
     handlers: {
       POST: async ({ request }) => {
         try {
+          // Check if this is a Stripe webhook (has stripe-signature header)
+          const stripeSignature = request.headers.get("stripe-signature");
+          if (stripeSignature) {
+            // Webhook handler for subscription events
+            const signature = stripeSignature;
+            const stripe = getStripeClient();
+            const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim();
+            if (!webhookSecret) {
+              throw new Error("Webhook secret not configured");
+            }
+
+            const body = await request.text();
+            const event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+
+            switch (event.type) {
+              case "customer.subscription.created":
+              case "customer.subscription.updated": {
+                const subscription = event.data.object as any;
+                console.log(`[stripe] Subscription ${event.type}:`, subscription.id);
+                // Handle subscription update (save to Firestore, etc.)
+                break;
+              }
+              case "customer.subscription.deleted": {
+                const subscription = event.data.object as any;
+                console.log(`[stripe] Subscription cancelled:`, subscription.id);
+                // Handle subscription cancellation
+                break;
+              }
+              case "invoice.payment_succeeded": {
+                const invoice = event.data.object as any;
+                console.log(`[stripe] Payment succeeded:`, invoice.id);
+                // Handle successful payment
+                break;
+              }
+              case "invoice.payment_failed": {
+                const invoice = event.data.object as any;
+                console.log(`[stripe] Payment failed:`, invoice.id);
+                // Handle payment failure
+                break;
+              }
+            }
+
+            return Response.json({ received: true });
+          }
+
+          // Regular subscription checkout handler
           const identity = await authenticateFirebaseRequest(request);
           const body = (await request.json()) as {
             plan?: string;
@@ -149,58 +195,6 @@ export const Route = createFileRoute("/api/stripe/subscription")({
             { error: "No se pudo iniciar el pago de suscripción." },
             { status: 500 }
           );
-        }
-      },
-
-      // Webhook handler for subscription events
-      POST: async ({ request }) => {
-        try {
-          const signature = request.headers.get("stripe-signature");
-          if (!signature) {
-            throw new Error("No Stripe signature provided");
-          }
-
-          const stripe = getStripeClient();
-          const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim();
-          if (!webhookSecret) {
-            throw new Error("Webhook secret not configured");
-          }
-
-          const body = await request.text();
-          const event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
-
-          switch (event.type) {
-            case "customer.subscription.created":
-            case "customer.subscription.updated": {
-              const subscription = event.data.object as any;
-              console.log(`[stripe] Subscription ${event.type}:`, subscription.id);
-              // Handle subscription update (save to Firestore, etc.)
-              break;
-            }
-            case "customer.subscription.deleted": {
-              const subscription = event.data.object as any;
-              console.log(`[stripe] Subscription cancelled:`, subscription.id);
-              // Handle subscription cancellation
-              break;
-            }
-            case "invoice.payment_succeeded": {
-              const invoice = event.data.object as any;
-              console.log(`[stripe] Payment succeeded:`, invoice.id);
-              // Handle successful payment
-              break;
-            }
-            case "invoice.payment_failed": {
-              const invoice = event.data.object as any;
-              console.log(`[stripe] Payment failed:`, invoice.id);
-              // Handle payment failure
-              break;
-            }
-          }
-
-          return Response.json({ received: true });
-        } catch (error) {
-          console.error("[stripe] Webhook error:", error);
-          return Response.json({ error: "Webhook processing failed" }, { status: 400 });
         }
       },
     },

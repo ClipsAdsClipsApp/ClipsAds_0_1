@@ -1,6 +1,6 @@
 export const LOCATIONS: Record<string, Record<string, string[]>> = {
   España: {
-    Madrid: ["Madrid", "Parla", "Leganés", "Getafe", "Fuenlabrada", "Móstoles", "Alcalá de Henares"],
+    Madrid: ["Madrid", "Pinto", "Parla", "Leganés", "Getafe", "Fuenlabrada", "Móstoles", "Alcalá de Henares"],
     Barcelona: ["Barcelona", "Badalona", "Sabadell", "Terrassa", "Hospitalet de Llobregat"],
     Valencia: ["Valencia", "Gandía", "Torrent", "Sagunto"],
     Sevilla: ["Sevilla", "Dos Hermanas", "Alcalá de Guadaíra"],
