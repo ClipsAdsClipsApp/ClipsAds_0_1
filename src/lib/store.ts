@@ -119,7 +119,7 @@ interface AppState extends Persisted {
   deletePublishedClip: (clipId: string) => Promise<void>;
   deleteAllPublishedClips: () => Promise<void>;
   shareClip: (clipId: string) => Promise<void>;
-  publishClip: (clip: Clip, product?: Product) => void;
+  publishClip: (clip: Clip, product: Product) => Promise<void>;
 }
 
 function save(part: Persisted) {
@@ -571,42 +571,33 @@ export const useApp = create<AppState>((set, get) => ({
     }
   },
 
-  publishClip: (clip, product) => {
+  publishClip: async (clip, product) => {
     const user = get().user;
+    if (!user || !firebaseConfigured) throw new Error("Inicia sesión para publicar un clip.");
     const located: Clip = { ...clip, country: user?.country, province: user?.province };
+    const avatar = user.avatarUrl;
+    await publishSharedClip({
+      authorId: user.id,
+      clip: located,
+      product,
+      author: {
+        username: user.username,
+        displayName: user.displayName,
+        avatarUrl: avatar && !avatar.startsWith("/avatars/") ? avatar : "",
+        role: user.role,
+        city: user.city,
+        stripeAccountId: user.stripeAccountId,
+      },
+      createdAt: clip.createdAt,
+    });
     set({
       clips: [located, ...get().clips],
-      products: product ? [product, ...get().products] : get().products,
+      products: [product, ...get().products],
       activeClipId: clip.id,
       tab: "home",
       sheet: null,
     });
     get().persist();
-    if (user && product && firebaseConfigured) {
-      const avatar = user.avatarUrl;
-      void publishSharedClip({
-        authorId: user.id,
-        clip: located,
-        product,
-        author: {
-          username: user.username,
-          displayName: user.displayName,
-          avatarUrl: avatar && !avatar.startsWith("/avatars/") ? avatar : "",
-          role: user.role,
-          city: user.city,
-          stripeAccountId: user.stripeAccountId,
-        },
-        createdAt: clip.createdAt,
-      }).catch((error: unknown) => {
-        console.error("[firebase] Could not share clip.", error);
-        const code = (error as { code?: string }).code;
-        get().toastMsg(
-          code === "permission-denied"
-            ? "Firebase rechazó el clip: publica las reglas de Firestore"
-            : `No se pudo compartir el clip${code ? ` (${code})` : ""}`,
-        );
-      });
-    }
     get().toastMsg("Clip publicado");
   },
 }));

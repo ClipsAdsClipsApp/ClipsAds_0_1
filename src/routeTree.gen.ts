@@ -13,10 +13,13 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AdminLoginRouteImport } from './routes/admin-login'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiBlobUploadRouteImport } from './routes/api/blob/upload'
+import { Route as ApiClipsPublishRouteImport } from './routes/api/clips/publish'
 import { Route as ApiStripeCheckoutRouteImport } from './routes/api/stripe/checkout'
 import { Route as ApiStripeConnectRouteImport } from './routes/api/stripe/connect'
+import { Route as ApiStripeSubscriptionRouteImport } from './routes/api/stripe/subscription'
 import { Route as ApiStripeCheckoutVerifyRouteImport } from './routes/api/stripe/checkout/verify'
 
 const IndexRoute = IndexRouteImport.update({
@@ -39,6 +42,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PricingRoute = PricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -49,6 +57,11 @@ const ApiBlobUploadRoute = ApiBlobUploadRouteImport.update({
   path: '/api/blob/upload',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiClipsPublishRoute = ApiClipsPublishRouteImport.update({
+  id: '/api/clips/publish',
+  path: '/api/clips/publish',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiStripeCheckoutRoute = ApiStripeCheckoutRouteImport.update({
   id: '/api/stripe/checkout',
   path: '/api/stripe/checkout',
@@ -57,6 +70,11 @@ const ApiStripeCheckoutRoute = ApiStripeCheckoutRouteImport.update({
 const ApiStripeConnectRoute = ApiStripeConnectRouteImport.update({
   id: '/api/stripe/connect',
   path: '/api/stripe/connect',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiStripeSubscriptionRoute = ApiStripeSubscriptionRouteImport.update({
+  id: '/api/stripe/subscription',
+  path: '/api/stripe/subscription',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiStripeCheckoutVerifyRoute = ApiStripeCheckoutVerifyRouteImport.update({
@@ -70,10 +88,13 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/admin-login': typeof AdminLoginRoute
   '/login': typeof LoginRoute
+  '/pricing': typeof PricingRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/blob/upload': typeof ApiBlobUploadRoute
+  '/api/clips/publish': typeof ApiClipsPublishRoute
   '/api/stripe/checkout': typeof ApiStripeCheckoutRouteWithChildren
   '/api/stripe/connect': typeof ApiStripeConnectRoute
+  '/api/stripe/subscription': typeof ApiStripeSubscriptionRoute
   '/api/stripe/checkout/verify': typeof ApiStripeCheckoutVerifyRoute
 }
 export interface FileRoutesByTo {
@@ -81,10 +102,13 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/admin-login': typeof AdminLoginRoute
   '/login': typeof LoginRoute
+  '/pricing': typeof PricingRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/blob/upload': typeof ApiBlobUploadRoute
+  '/api/clips/publish': typeof ApiClipsPublishRoute
   '/api/stripe/checkout': typeof ApiStripeCheckoutRouteWithChildren
   '/api/stripe/connect': typeof ApiStripeConnectRoute
+  '/api/stripe/subscription': typeof ApiStripeSubscriptionRoute
   '/api/stripe/checkout/verify': typeof ApiStripeCheckoutVerifyRoute
 }
 export interface FileRoutesById {
@@ -93,10 +117,13 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/admin-login': typeof AdminLoginRoute
   '/login': typeof LoginRoute
+  '/pricing': typeof PricingRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/blob/upload': typeof ApiBlobUploadRoute
+  '/api/clips/publish': typeof ApiClipsPublishRoute
   '/api/stripe/checkout': typeof ApiStripeCheckoutRouteWithChildren
   '/api/stripe/connect': typeof ApiStripeConnectRoute
+  '/api/stripe/subscription': typeof ApiStripeSubscriptionRoute
   '/api/stripe/checkout/verify': typeof ApiStripeCheckoutVerifyRoute
 }
 export interface FileRouteTypes {
@@ -106,10 +133,13 @@ export interface FileRouteTypes {
     | '/admin'
     | '/admin-login'
     | '/login'
+    | '/pricing'
     | '/api/auth/$'
     | '/api/blob/upload'
+    | '/api/clips/publish'
     | '/api/stripe/checkout'
     | '/api/stripe/connect'
+    | '/api/stripe/subscription'
     | '/api/stripe/checkout/verify'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -117,10 +147,13 @@ export interface FileRouteTypes {
     | '/admin'
     | '/admin-login'
     | '/login'
+    | '/pricing'
     | '/api/auth/$'
     | '/api/blob/upload'
+    | '/api/clips/publish'
     | '/api/stripe/checkout'
     | '/api/stripe/connect'
+    | '/api/stripe/subscription'
     | '/api/stripe/checkout/verify'
   id:
     | '__root__'
@@ -128,10 +161,13 @@ export interface FileRouteTypes {
     | '/admin'
     | '/admin-login'
     | '/login'
+    | '/pricing'
     | '/api/auth/$'
     | '/api/blob/upload'
+    | '/api/clips/publish'
     | '/api/stripe/checkout'
     | '/api/stripe/connect'
+    | '/api/stripe/subscription'
     | '/api/stripe/checkout/verify'
   fileRoutesById: FileRoutesById
 }
@@ -140,10 +176,13 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   AdminLoginRoute: typeof AdminLoginRoute
   LoginRoute: typeof LoginRoute
+  PricingRoute: typeof PricingRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiBlobUploadRoute: typeof ApiBlobUploadRoute
+  ApiClipsPublishRoute: typeof ApiClipsPublishRoute
   ApiStripeCheckoutRoute: typeof ApiStripeCheckoutRouteWithChildren
   ApiStripeConnectRoute: typeof ApiStripeConnectRoute
+  ApiStripeSubscriptionRoute: typeof ApiStripeSubscriptionRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -176,6 +215,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pricing': {
+      id: '/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof PricingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -190,6 +236,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiBlobUploadRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/clips/publish': {
+      id: '/api/clips/publish'
+      path: '/api/clips/publish'
+      fullPath: '/api/clips/publish'
+      preLoaderRoute: typeof ApiClipsPublishRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/stripe/checkout': {
       id: '/api/stripe/checkout'
       path: '/api/stripe/checkout'
@@ -202,6 +255,13 @@ declare module '@tanstack/react-router' {
       path: '/api/stripe/connect'
       fullPath: '/api/stripe/connect'
       preLoaderRoute: typeof ApiStripeConnectRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/stripe/subscription': {
+      id: '/api/stripe/subscription'
+      path: '/api/stripe/subscription'
+      fullPath: '/api/stripe/subscription'
+      preLoaderRoute: typeof ApiStripeSubscriptionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/stripe/checkout/verify': {
@@ -230,10 +290,13 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   AdminLoginRoute: AdminLoginRoute,
   LoginRoute: LoginRoute,
+  PricingRoute: PricingRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiBlobUploadRoute: ApiBlobUploadRoute,
+  ApiClipsPublishRoute: ApiClipsPublishRoute,
   ApiStripeCheckoutRoute: ApiStripeCheckoutRouteWithChildren,
   ApiStripeConnectRoute: ApiStripeConnectRoute,
+  ApiStripeSubscriptionRoute: ApiStripeSubscriptionRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

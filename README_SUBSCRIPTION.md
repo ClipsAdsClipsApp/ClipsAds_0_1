@@ -1,5 +1,11 @@
 # 🎉 Proyecto Completado: Sistema de Suscripción con Stripe
 
+> Este documento es histórico. Los precios actuales son Business: 9,99 €/mes o
+> 99,99 €/año; Enterprise: 29,99 €/mes o 299,90 €/año. Consulta
+> [STRIPE_SETUP.md](./STRIPE_SETUP.md) para la configuración y las limitaciones
+> actuales. La existencia de código no implica que la configuración ni el
+> despliegue estén completados.
+
 ## 📌 Resumen Ejecutivo
 
 **Fecha:** 20 de Noviembre de 2026

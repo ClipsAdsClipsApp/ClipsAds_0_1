@@ -3,9 +3,12 @@ import {
   authenticateFirebaseRequest,
   CheckoutRequestError,
   getStripeClient,
-  saveStripeAccountId,
   StripeSetupError,
 } from "@/lib/stripe/server";
+import { saveStripeSubscriptionFromWebhook } from "@/lib/stripe/webhook";
+import { prepareSubscriptionCheckout, recordCheckoutSession } from "@/lib/stripe/checkout.server";
+import { SUBSCRIPTION_PRICES } from "@/lib/stripe/plans";
+import { getFirebaseAdmin } from "@/lib/admin/firebase.server";
 
 type SubscriptionPlan = "monthly" | "annual";
 type UserRole = "business" | "enterprise";
@@ -23,15 +26,15 @@ const SUBSCRIPTION_PLANS: Record<UserRole, Record<SubscriptionPlan, Subscription
   business: {
     monthly: {
       priceId: "price_business_monthly",
-      amount: 2999, // $29.99/month in cents
-      currency: "usd",
+      amount: SUBSCRIPTION_PRICES.business.monthly,
+      currency: "eur",
       interval: "month",
       intervalCount: 1,
     },
     annual: {
       priceId: "price_business_annual",
-      amount: 29990, // $299.90/year (saves ~$60)
-      currency: "usd",
+      amount: SUBSCRIPTION_PRICES.business.annual,
+      currency: "eur",
       interval: "year",
       intervalCount: 1,
     },
@@ -39,15 +42,15 @@ const SUBSCRIPTION_PLANS: Record<UserRole, Record<SubscriptionPlan, Subscription
   enterprise: {
     monthly: {
       priceId: "price_enterprise_monthly",
-      amount: 9999, // $99.99/month in cents
-      currency: "usd",
+      amount: SUBSCRIPTION_PRICES.enterprise.monthly,
+      currency: "eur",
       interval: "month",
       intervalCount: 1,
     },
     annual: {
       priceId: "price_enterprise_annual",
-      amount: 99990, // $999.90/year (saves ~$200)
-      currency: "usd",
+      amount: SUBSCRIPTION_PRICES.enterprise.annual,
+      currency: "eur",
       interval: "year",
       intervalCount: 1,
     },
@@ -71,20 +74,18 @@ export const Route = createFileRoute("/api/stripe/subscription")({
             }
 
             const body = await request.text();
-            const event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+            let event;
+            try {
+              event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+            } catch {
+              return Response.json({ error: "Firma de webhook no válida." }, { status: 400 });
+            }
 
             switch (event.type) {
               case "customer.subscription.created":
-              case "customer.subscription.updated": {
-                const subscription = event.data.object as any;
-                console.log(`[stripe] Subscription ${event.type}:`, subscription.id);
-                // Handle subscription update (save to Firestore, etc.)
-                break;
-              }
+              case "customer.subscription.updated":
               case "customer.subscription.deleted": {
-                const subscription = event.data.object as any;
-                console.log(`[stripe] Subscription cancelled:`, subscription.id);
-                // Handle subscription cancellation
+                await saveStripeSubscriptionFromWebhook(stripe, event.data.object, event.created);
                 break;
               }
               case "invoice.payment_succeeded": {
@@ -106,6 +107,7 @@ export const Route = createFileRoute("/api/stripe/subscription")({
 
           // Regular subscription checkout handler
           const identity = await authenticateFirebaseRequest(request);
+          await getFirebaseAdmin().auth.verifyIdToken(identity.idToken, true);
           const body = (await request.json()) as {
             plan?: string;
             role?: string;
@@ -129,6 +131,18 @@ export const Route = createFileRoute("/api/stripe/subscription")({
 
           const stripe = getStripeClient();
           const origin = new URL(request.url).origin;
+          const prepared = await prepareSubscriptionCheckout(stripe, {
+            uid: identity.uid,
+            email: identity.email,
+            role,
+            plan,
+            origin,
+          });
+          if (prepared.session) {
+            return Response.json({ url: prepared.session.url, sessionId: prepared.session.id, plan, role });
+          }
+          const attempt = prepared.attempt;
+          if (!attempt) throw new Error("Missing checkout reservation");
 
           // Create checkout session for subscription
           const session = await stripe.checkout.sessions.create({
@@ -144,32 +158,37 @@ export const Route = createFileRoute("/api/stripe/subscription")({
                     interval_count: config.intervalCount,
                   },
                   product_data: {
-                    name: `ClipsApp ${role === "enterprise" ? "Enterprise" : "Business"} Plan`,
-                    description: `${role === "enterprise" ? "Enterprise" : "Business"} subscription - ${
-                      plan === "annual" ? "Annual" : "Monthly"
+                    name: `ClipsApp ${attempt.role === "enterprise" ? "Enterprise" : "Business"} Plan`,
+                    description: `${attempt.role === "enterprise" ? "Enterprise" : "Business"} subscription - ${
+                      attempt.plan === "annual" ? "Annual" : "Monthly"
                     } billing`,
                     metadata: {
-                      role,
-                      plan,
+                      role: attempt.role,
+                      plan: attempt.plan,
                     },
                   },
                 },
               },
             ],
-            customer_email: identity.email || undefined,
+            customer_email: attempt.email || undefined,
             metadata: {
               userId: identity.uid,
-              role,
-              plan,
+              role: attempt.role,
+              plan: attempt.plan,
               firebaseUid: identity.uid,
+              attemptId: attempt.id,
             },
-            success_url: `${origin}/?subscription=success&session_id={CHECKOUT_SESSION_ID}`,
-            cancel_url: `${origin}/?subscription=cancelled`,
-          });
+            subscription_data: {
+              metadata: { userId: identity.uid, role: attempt.role },
+            },
+            success_url: `${attempt.origin}/pricing?subscription=success`,
+            cancel_url: `${attempt.origin}/pricing?subscription=cancelled`,
+          }, { idempotencyKey: `clipsapp-subscription-${attempt.id}` });
 
           if (!session.url) {
             throw new CheckoutRequestError("Stripe no devolvió el enlace de pago.");
           }
+          await recordCheckoutSession(identity.uid, attempt.id, session.id);
 
           return Response.json({
             url: session.url,

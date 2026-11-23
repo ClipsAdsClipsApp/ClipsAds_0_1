@@ -3,7 +3,6 @@ import {
   collection,
   deleteDoc,
   doc,
-  getDoc,
   getDocs,
   limit,
   onSnapshot,
@@ -13,9 +12,8 @@ import {
   setDoc,
   where,
   writeBatch,
-  type DocumentReference,
 } from "firebase/firestore";
-import { getFirebaseFirestore } from "@/lib/firebase/client";
+import { getFirebaseAuth, getFirebaseFirestore } from "@/lib/firebase/client";
 import type { Clip, Comment, Creator, Product } from "@/lib/types";
 
 export type SharedClipDoc = {
@@ -55,6 +53,7 @@ export function subscribeClipCounts(
   clipId: string,
   onData: (counts: ClipCounts) => void,
   onError?: (error: Error) => void,
+  includeBusinessMetrics = false,
 ): () => void {
   const db = getFirebaseFirestore();
   const counts: ClipCounts = {
@@ -75,6 +74,9 @@ export function subscribeClipCounts(
       (error) => onError?.(error),
     );
   const stops = [watch("comments"), watch("saves"), watch("shares")];
+  if (includeBusinessMetrics) {
+    stops.push(watch("views"), watch("detailViews"), watch("conversionClicks"));
+  }
   return () => stops.forEach((stop) => stop());
 }
 
@@ -103,8 +105,21 @@ export function recordClipShare(clipId: string, userId: string): Promise<void> {
 
 export type SharedAuthor = SharedClipDoc["author"];
 
-export function publishSharedClip(entry: SharedClipDoc): Promise<void> {
-  return setDoc(doc(getFirebaseFirestore(), "clips", entry.clip.id), entry);
+export async function publishSharedClip(entry: SharedClipDoc): Promise<void> {
+  const user = getFirebaseAuth().currentUser;
+  if (!user || user.uid !== entry.authorId) throw new Error("Inicia sesión de nuevo.");
+  const response = await fetch("/api/clips/publish", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${await user.getIdToken()}`,
+    },
+    body: JSON.stringify(entry),
+  });
+  if (!response.ok) {
+    const body = await response.json() as { error?: string };
+    throw new Error(body.error ?? "No se pudo publicar el clip.");
+  }
 }
 
 export function subscribeSharedClips(
@@ -243,39 +258,27 @@ export async function syncSharedAuthor(authorId: string, author: SharedAuthor): 
 }
 
 export async function deleteSharedClip(clipId: string): Promise<void> {
-  const ref = doc(getFirebaseFirestore(), "clips", clipId);
-  const snapshot = await getDoc(ref);
-  if (snapshot.exists()) await deleteClipDocuments([ref]);
+  await deleteClips({ clipId });
 }
 
 export async function deleteAllSharedClips(authorId: string): Promise<void> {
-  const matches = await getDocs(
-    query(collection(getFirebaseFirestore(), "clips"), where("authorId", "==", authorId)),
-  );
-  const clipRefs = matches.docs.map((match) => match.ref);
-  await deleteClipDocuments(clipRefs);
+  if (getFirebaseAuth().currentUser?.uid !== authorId) throw new Error("Inicia sesión de nuevo.");
+  await deleteClips({});
 }
 
-async function deleteClipDocuments(clipRefs: DocumentReference[]): Promise<void> {
-  const db = getFirebaseFirestore();
-  for (const clipRef of clipRefs) {
-    const [comments, votes, saves, shares, views, detailViews, conversionClicks] = await Promise.all([
-      getDocs(collection(db, "clips", clipRef.id, "comments")),
-      getDocs(collection(db, "clips", clipRef.id, "votes")),
-      getDocs(collection(db, "clips", clipRef.id, "saves")),
-      getDocs(collection(db, "clips", clipRef.id, "shares")),
-      getDocs(collection(db, "clips", clipRef.id, "views")),
-      getDocs(collection(db, "clips", clipRef.id, "detailViews")),
-      getDocs(collection(db, "clips", clipRef.id, "conversionClicks")),
-    ]);
-    const childRefs = [comments, votes, saves, shares, views, detailViews, conversionClicks].flatMap((snapshot) =>
-      snapshot.docs.map((entry) => entry.ref),
-    );
-    for (let start = 0; start < childRefs.length; start += 450) {
-      const batch = writeBatch(db);
-      for (const ref of childRefs.slice(start, start + 450)) batch.delete(ref);
-      await batch.commit();
-    }
-    await deleteDoc(clipRef);
+async function deleteClips(input: { clipId?: string }): Promise<void> {
+  const user = getFirebaseAuth().currentUser;
+  if (!user) throw new Error("Inicia sesión de nuevo.");
+  const response = await fetch("/api/clips/publish", {
+    method: "DELETE",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${await user.getIdToken()}`,
+    },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const body = await response.json() as { error?: string };
+    throw new Error(body.error ?? "No se pudieron eliminar los clips.");
   }
 }

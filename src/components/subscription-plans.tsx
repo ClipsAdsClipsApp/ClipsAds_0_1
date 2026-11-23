@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { Check, LoaderCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getFirebaseAuth } from "@/lib/firebase/client";
+import { SUBSCRIPTION_PRICES } from "@/lib/stripe/plans";
 
 type SubscriptionPlan = "monthly" | "annual";
 type UserRole = "business" | "enterprise";
@@ -20,60 +21,52 @@ const SUBSCRIPTION_OPTIONS: SubscriptionOption[] = [
   {
     plan: "monthly",
     role: "business",
-    price: 29.99,
-    currency: "USD",
+    price: SUBSCRIPTION_PRICES.business.monthly / 100,
+    currency: "EUR",
     interval: "/mes",
     features: [
       "Hasta 10 clips al mes",
-      "Analytics básicos",
-      "Soporte por email",
-      "Insignia de empresa verificada",
+      "Panel y métricas de empresa",
+      "Segmentación por edad y todas las acciones",
     ],
   },
   {
     plan: "annual",
     role: "business",
-    price: 299.9,
-    currency: "USD",
+    price: SUBSCRIPTION_PRICES.business.annual / 100,
+    currency: "EUR",
     interval: "/año",
     features: [
       "Hasta 10 clips al mes",
-      "Analytics básicos",
-      "Soporte prioritario",
-      "Insignia de empresa verificada",
-      "Descuento 17% vs mensual",
+      "Panel y métricas de empresa",
+      "Segmentación por edad y todas las acciones",
+      "Ahorro frente al pago mensual",
     ],
     highlighted: true,
   },
   {
     plan: "monthly",
     role: "enterprise",
-    price: 99.99,
-    currency: "USD",
+    price: SUBSCRIPTION_PRICES.enterprise.monthly / 100,
+    currency: "EUR",
     interval: "/mes",
     features: [
       "Clips ilimitados",
-      "Analytics avanzados",
-      "Soporte 24/7",
-      "API access",
-      "Team management",
-      "Custom branding",
+      "Panel y métricas de empresa",
+      "Segmentación por edad y todas las acciones",
     ],
   },
   {
     plan: "annual",
     role: "enterprise",
-    price: 999.9,
-    currency: "USD",
+    price: SUBSCRIPTION_PRICES.enterprise.annual / 100,
+    currency: "EUR",
     interval: "/año",
     features: [
       "Clips ilimitados",
-      "Analytics avanzados",
-      "Soporte 24/7",
-      "API access",
-      "Team management",
-      "Custom branding",
-      "Descuento 17% vs mensual",
+      "Panel y métricas de empresa",
+      "Segmentación por edad y todas las acciones",
+      "Ahorro frente al pago mensual",
     ],
     highlighted: true,
   },
@@ -159,18 +152,6 @@ export function SubscriptionPlans() {
         ))}
       </div>
 
-      <div className="mt-8 rounded-lg border border-line bg-surface-2 p-6">
-        <h3 className="font-display text-lg font-bold">¿Tienes dudas?</h3>
-        <p className="mt-2 text-muted">
-          Contacta a nuestro equipo de ventas para más información sobre planes personalizados.
-        </p>
-        <button
-          type="button"
-          className="mt-4 rounded-lg bg-cyan px-6 py-2 font-semibold text-bg"
-        >
-          Contactar ventas
-        </button>
-      </div>
     </div>
   );
 }
@@ -209,7 +190,7 @@ function SubscriptionCard({ option, loading, onSubscribe }: SubscriptionCardProp
       <div className="mb-6">
         <div className="flex items-baseline gap-1">
           <span className="font-display text-4xl font-bold">
-            ${option.price.toFixed(2)}
+            {new Intl.NumberFormat("es-ES", { style: "currency", currency: option.currency }).format(option.price)}
           </span>
           <span className="text-sm text-muted">{option.interval}</span>
         </div>
@@ -245,11 +226,6 @@ function SubscriptionCard({ option, loading, onSubscribe }: SubscriptionCardProp
         )}
       </button>
 
-      <p className="mt-3 text-center text-xs text-muted">
-        {option.plan === "annual"
-          ? "Cancela en cualquier momento"
-          : "Período de prueba: 7 días"}
-      </p>
     </div>
   );
 }
@@ -262,7 +238,7 @@ export function SubscriptionSuccessModal() {
       </div>
       <h3 className="font-display text-lg font-bold">¡Suscripción completada!</h3>
       <p className="mt-2 text-muted">
-        Tu cuenta ha sido actualizada. Accede a todas las funciones premium ahora.
+        Estamos confirmando tu pago. Las funciones de tu plan se activarán al recibir la confirmación de Stripe.
       </p>
     </div>
   );
@@ -274,7 +250,7 @@ export function SubscriptionCancelledModal() {
       <div className="mb-4 inline-block rounded-full bg-pink/20 p-3">
         <span className="text-2xl">⚠️</span>
       </div>
-      <h3 className="font-display text-lg font-bold">Suscripción cancelada</h3>
+      <h3 className="font-display text-lg font-bold">Pago cancelado</h3>
       <p className="mt-2 text-muted">
         No se realizó el pago. Puedes intentarlo de nuevo en cualquier momento.
       </p>

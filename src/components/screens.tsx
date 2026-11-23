@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { uploadPresigned } from "@vercel/blob/client";
-import { CreditCard, ExternalLink, LoaderCircle, Trash2 } from "lucide-react";
+import { CreditCard, ExternalLink, LoaderCircle, Lock, Trash2 } from "lucide-react";
 import { BottomNav } from "@/components/chrome";
 import {
   IconChart,
@@ -21,6 +21,7 @@ import { openCookieSettings } from "@/components/cookie-consent";
 import { changePassword, signOut } from "@/lib/firebase/auth";
 import { firebaseConfigured, getFirebaseAuth } from "@/lib/firebase/client";
 import { subscribeClipCounts, subscribeMySharedClips, type ClipCounts, type SharedClipDoc } from "@/lib/firebase/clips";
+import { fetchPublishingAccess, usePublishingAccess } from "@/lib/firebase/use-publishing-access";
 import { saveMyProfile } from "@/lib/profile";
 
 export function Explore() {
@@ -136,10 +137,12 @@ function Chip({
   on,
   onClick,
   children,
+  className: classNameProp,
 }: {
   on: boolean;
-  onClick: () => void;
-  children: string;
+  onClick: (e?: React.MouseEvent) => void;
+  children: React.ReactNode;
+  className?: string;
 }) {
   return (
     <button
@@ -148,6 +151,7 @@ function Chip({
       className={cn(
         "shrink-0 rounded-full px-3 py-1.5 text-xs font-bold",
         on ? "bg-cyan text-bg" : "bg-fg/8 text-muted",
+        classNameProp
       )}
     >
       {children}
@@ -253,6 +257,9 @@ function ClipTile({ clip, onOpen }: { clip: Clip; onOpen: () => void }) {
 export function CreateClip() {
   const user = useApp((s) => s.user);
   const publishClip = useApp((s) => s.publishClip);
+  const accessState = usePublishingAccess(user?.id);
+  const access = accessState?.access;
+  const paid = access?.plan === "business" || access?.plan === "enterprise";
   const [fileUrl, setFileUrl] = useState<string>();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [posterUrl, setPosterUrl] = useState<string>();
@@ -268,7 +275,7 @@ export function CreateClip() {
   const [category, setCategory] = useState<CategoryId>("tech");
   const [disclosure, setDisclosure] = useState<Disclosure>("organic");
   const [targetAges, setTargetAges] = useState<AgeRange[]>([]);
-  const [cta, setCta] = useState<CtaKind>("buy");
+  const [cta, setCta] = useState<CtaKind>("book");
   const [purchaseMode, setPurchaseMode] = useState<PurchaseMode>("internal");
   const [purchaseUrl, setPurchaseUrl] = useState("");
   const [bookingUrl, setBookingUrl] = useState("");
@@ -277,6 +284,13 @@ export function CreateClip() {
   const [offerDetails, setOfferDetails] = useState("");
   const [sizeOptionsText, setSizeOptionsText] = useState("");
   const [address, setAddress] = useState("");
+
+  useEffect(() => {
+    if (access?.plan === "free") {
+      setTargetAges([]);
+      setCta((current) => ["buy", "contact", "offer"].includes(current) ? "book" : current);
+    }
+  }, [access?.plan]);
 
   useEffect(() => () => {
     if (fileUrl) URL.revokeObjectURL(fileUrl);
@@ -311,6 +325,13 @@ export function CreateClip() {
       const firebaseUser = getFirebaseAuth().currentUser;
       if (!firebaseUser || firebaseUser.uid !== user?.id) {
         throw new Error("Inicia sesión de nuevo antes de subir un video.");
+      }
+      const currentAccess = await fetchPublishingAccess(firebaseUser.uid);
+      if (currentAccess.limit !== null && currentAccess.count >= currentAccess.limit) {
+        throw new Error(`Has alcanzado el límite de ${currentAccess.limit} clips para este periodo.`);
+      }
+      if (currentAccess.plan === "free" && (targetAges.length > 0 || ["buy", "contact", "offer"].includes(cta))) {
+        throw new Error("La segmentación por edad y esta acción requieren Business o Enterprise.");
       }
       const maxVideoBytes = 100 * 1024 * 1024;
       if (selectedFile.size > maxVideoBytes) {
@@ -347,7 +368,7 @@ export function CreateClip() {
       });
 
       const parsed = Number.parseFloat(price.replace(",", ".")) || 0;
-      publishClip(
+      await publishClip(
         {
           id,
           videoUrl: blob.url,
@@ -420,6 +441,12 @@ export function CreateClip() {
       <header className="px-4 pt-[calc(18px+env(safe-area-inset-top))]">
         <h1 className="font-display text-2xl font-bold">Publicar clip</h1>
         <p className="text-xs text-muted">Etiqueta el producto y declara si hay colaboración.</p>
+        <p className="mt-1 text-xs text-muted">
+          {access ? access.limit === null ? "Clips ilimitados" : `${access.count} de ${access.limit} clips en este periodo` : accessState?.error ?? "Comprobando tu plan..."}
+        </p>
+        {access?.plan === "free" ? (
+          <a href="/pricing" className="mt-1 inline-block text-xs font-bold text-cyan">Ver planes de pago</a>
+        ) : null}
       </header>
       <div className="scrollbar-none flex-1 overflow-y-auto px-4 pb-24 pt-3">
         <label className="mb-3 flex h-44 cursor-pointer items-center justify-center overflow-hidden rounded-2xl border border-dashed border-cyan/40 bg-surface">
@@ -530,9 +557,10 @@ export function CreateClip() {
             </Chip>
           ))}
         </div>
-        <fieldset className="mb-4">
+        <fieldset className={cn("mb-4", !paid && "opacity-60")} disabled={!paid}>
           <legend className="mb-1 text-xs font-bold text-muted">Segmentar por edad</legend>
           <p className="mb-2 text-[11px] text-subtle">Solo verán este clip las edades que elijas.</p>
+          {!paid ? <p className="mb-2 text-[11px] text-muted">Disponible con Business o Enterprise.</p> : null}
           <div className="flex flex-wrap gap-1.5">
             <Chip on={targetAges.length === 0} onClick={() => setTargetAges([])}>
               Todas las edades
@@ -571,14 +599,15 @@ export function CreateClip() {
               <button
                 key={kind}
                 type="button"
+                disabled={!paid && ["buy", "contact", "offer"].includes(kind)}
                 aria-pressed={cta === kind}
                 onClick={() => setCta(kind)}
                 className={cn(
-                  "min-h-10 rounded-xl border px-3 py-2 text-xs font-bold transition-colors",
+                  "min-h-10 rounded-xl border px-3 py-2 text-xs font-bold transition-colors disabled:opacity-40",
                   cta === kind ? "border-cyan bg-cyan/10 text-cyan" : "border-line bg-bg-elevated text-muted",
                 )}
               >
-                {label}
+                {label}{!paid && ["buy", "contact", "offer"].includes(kind) ? " · Plan de pago" : ""}
               </button>
             ))}
           </div>
@@ -629,7 +658,7 @@ export function CreateClip() {
         ) : null}
         <button
           type="button"
-          disabled={!name.trim() || !selectedFile || uploading}
+          disabled={!name.trim() || !selectedFile || uploading || !access || (access.limit !== null && access.count >= access.limit)}
           onClick={() => void submitClip()}
           className="w-full rounded-[15px] bg-gradient-to-br from-cyan to-mint py-3.5 text-sm font-extrabold text-bg disabled:opacity-40"
         >
@@ -826,7 +855,16 @@ export function Profile() {
   const [passwordBusy, setPasswordBusy] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordNotice, setPasswordNotice] = useState<string | null>(null);
+  const accessState = usePublishingAccess(user?.id);
+  const paid = accessState?.access?.plan === "business" || accessState?.access?.plan === "enterprise";
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (panel === "business" && !paid) {
+      setPanel("profile");
+      toastMsg("Acceso a Empresa revocado - plan no válido");
+    }
+  }, [paid, panel, toastMsg]);
 
   if (!user) return null;
 
@@ -951,9 +989,25 @@ export function Profile() {
           <Chip on={panel === "profile"} onClick={() => setPanel("profile")}>
             Perfil
           </Chip>
-          <Chip on={panel === "business"} onClick={() => setPanel("business")}>
-            Empresa
-          </Chip>
+          {paid ? (
+            <Chip on={panel === "business"} onClick={() => setPanel("business")}>
+              Empresa
+            </Chip>
+          ) : (
+            <div
+              className="relative flex-1"
+              title="Disponible con los planes Business y Enterprise"
+            >
+              <Chip on={false} onClick={(e) => {
+                e?.preventDefault?.();
+                e?.stopPropagation?.();
+                toastMsg("Acceso a Empresa disponible con Business o Enterprise");
+              }} className="opacity-50 cursor-not-allowed">
+                <Lock size={14} className="inline mr-1" />
+                Empresa
+              </Chip>
+            </div>
+          )}
         </div>
       </header>
       <div className="scrollbar-none flex-1 overflow-y-auto px-4 pb-24 pt-4">
@@ -1184,7 +1238,7 @@ function BusinessPanel() {
         if (active) setCounts((current) => ({ ...current, [clipId]: next }));
       }, (error) => {
         console.error("[firebase] Could not load business metrics.", error);
-      }),
+      }, true),
     );
     return () => {
       active = false;
