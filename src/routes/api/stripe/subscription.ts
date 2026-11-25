@@ -181,7 +181,7 @@ export const Route = createFileRoute("/api/stripe/subscription")({
             subscription_data: {
               metadata: { userId: identity.uid, role: attempt.role },
             },
-            success_url: `${attempt.origin}/pricing?subscription=success`,
+            success_url: `${attempt.origin}/?subscription=success&session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${attempt.origin}/pricing?subscription=cancelled`,
           }, { idempotencyKey: `clipsapp-subscription-${attempt.id}` });
 

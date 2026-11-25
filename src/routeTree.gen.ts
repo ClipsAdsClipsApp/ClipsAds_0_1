@@ -21,6 +21,7 @@ import { Route as ApiStripeCheckoutRouteImport } from './routes/api/stripe/check
 import { Route as ApiStripeConnectRouteImport } from './routes/api/stripe/connect'
 import { Route as ApiStripeSubscriptionRouteImport } from './routes/api/stripe/subscription'
 import { Route as ApiStripeCheckoutVerifyRouteImport } from './routes/api/stripe/checkout/verify'
+import { Route as ApiStripeSubscriptionConfirmRouteImport } from './routes/api/stripe/subscription/confirm'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -82,6 +83,12 @@ const ApiStripeCheckoutVerifyRoute = ApiStripeCheckoutVerifyRouteImport.update({
   path: '/verify',
   getParentRoute: () => ApiStripeCheckoutRoute,
 } as any)
+const ApiStripeSubscriptionConfirmRoute =
+  ApiStripeSubscriptionConfirmRouteImport.update({
+    id: '/confirm',
+    path: '/confirm',
+    getParentRoute: () => ApiStripeSubscriptionRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -94,8 +101,9 @@ export interface FileRoutesByFullPath {
   '/api/clips/publish': typeof ApiClipsPublishRoute
   '/api/stripe/checkout': typeof ApiStripeCheckoutRouteWithChildren
   '/api/stripe/connect': typeof ApiStripeConnectRoute
-  '/api/stripe/subscription': typeof ApiStripeSubscriptionRoute
+  '/api/stripe/subscription': typeof ApiStripeSubscriptionRouteWithChildren
   '/api/stripe/checkout/verify': typeof ApiStripeCheckoutVerifyRoute
+  '/api/stripe/subscription/confirm': typeof ApiStripeSubscriptionConfirmRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -108,8 +116,9 @@ export interface FileRoutesByTo {
   '/api/clips/publish': typeof ApiClipsPublishRoute
   '/api/stripe/checkout': typeof ApiStripeCheckoutRouteWithChildren
   '/api/stripe/connect': typeof ApiStripeConnectRoute
-  '/api/stripe/subscription': typeof ApiStripeSubscriptionRoute
+  '/api/stripe/subscription': typeof ApiStripeSubscriptionRouteWithChildren
   '/api/stripe/checkout/verify': typeof ApiStripeCheckoutVerifyRoute
+  '/api/stripe/subscription/confirm': typeof ApiStripeSubscriptionConfirmRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -123,8 +132,9 @@ export interface FileRoutesById {
   '/api/clips/publish': typeof ApiClipsPublishRoute
   '/api/stripe/checkout': typeof ApiStripeCheckoutRouteWithChildren
   '/api/stripe/connect': typeof ApiStripeConnectRoute
-  '/api/stripe/subscription': typeof ApiStripeSubscriptionRoute
+  '/api/stripe/subscription': typeof ApiStripeSubscriptionRouteWithChildren
   '/api/stripe/checkout/verify': typeof ApiStripeCheckoutVerifyRoute
+  '/api/stripe/subscription/confirm': typeof ApiStripeSubscriptionConfirmRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -141,6 +151,7 @@ export interface FileRouteTypes {
     | '/api/stripe/connect'
     | '/api/stripe/subscription'
     | '/api/stripe/checkout/verify'
+    | '/api/stripe/subscription/confirm'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -155,6 +166,7 @@ export interface FileRouteTypes {
     | '/api/stripe/connect'
     | '/api/stripe/subscription'
     | '/api/stripe/checkout/verify'
+    | '/api/stripe/subscription/confirm'
   id:
     | '__root__'
     | '/'
@@ -169,6 +181,7 @@ export interface FileRouteTypes {
     | '/api/stripe/connect'
     | '/api/stripe/subscription'
     | '/api/stripe/checkout/verify'
+    | '/api/stripe/subscription/confirm'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -182,7 +195,7 @@ export interface RootRouteChildren {
   ApiClipsPublishRoute: typeof ApiClipsPublishRoute
   ApiStripeCheckoutRoute: typeof ApiStripeCheckoutRouteWithChildren
   ApiStripeConnectRoute: typeof ApiStripeConnectRoute
-  ApiStripeSubscriptionRoute: typeof ApiStripeSubscriptionRoute
+  ApiStripeSubscriptionRoute: typeof ApiStripeSubscriptionRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -271,6 +284,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStripeCheckoutVerifyRouteImport
       parentRoute: typeof ApiStripeCheckoutRoute
     }
+    '/api/stripe/subscription/confirm': {
+      id: '/api/stripe/subscription/confirm'
+      path: '/confirm'
+      fullPath: '/api/stripe/subscription/confirm'
+      preLoaderRoute: typeof ApiStripeSubscriptionConfirmRouteImport
+      parentRoute: typeof ApiStripeSubscriptionRoute
+    }
   }
 }
 
@@ -285,6 +305,19 @@ const ApiStripeCheckoutRouteChildren: ApiStripeCheckoutRouteChildren = {
 const ApiStripeCheckoutRouteWithChildren =
   ApiStripeCheckoutRoute._addFileChildren(ApiStripeCheckoutRouteChildren)
 
+interface ApiStripeSubscriptionRouteChildren {
+  ApiStripeSubscriptionConfirmRoute: typeof ApiStripeSubscriptionConfirmRoute
+}
+
+const ApiStripeSubscriptionRouteChildren: ApiStripeSubscriptionRouteChildren = {
+  ApiStripeSubscriptionConfirmRoute: ApiStripeSubscriptionConfirmRoute,
+}
+
+const ApiStripeSubscriptionRouteWithChildren =
+  ApiStripeSubscriptionRoute._addFileChildren(
+    ApiStripeSubscriptionRouteChildren,
+  )
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
@@ -296,7 +329,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiClipsPublishRoute: ApiClipsPublishRoute,
   ApiStripeCheckoutRoute: ApiStripeCheckoutRouteWithChildren,
   ApiStripeConnectRoute: ApiStripeConnectRoute,
-  ApiStripeSubscriptionRoute: ApiStripeSubscriptionRoute,
+  ApiStripeSubscriptionRoute: ApiStripeSubscriptionRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

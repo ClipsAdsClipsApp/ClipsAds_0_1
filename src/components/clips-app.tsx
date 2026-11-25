@@ -88,6 +88,53 @@ export function ClipsApp() {
   }, [isPending, session?.id, toastMsg]);
 
   useEffect(() => {
+    if (isPending || !session || typeof window === "undefined") return;
+    const currentUrl = new URL(window.location.href);
+    if (currentUrl.searchParams.get("subscription") !== "success") return;
+    const sessionId = currentUrl.searchParams.get("session_id");
+    if (!sessionId) return;
+    const sessionUserId = session.id;
+    let cancelled = false;
+
+    async function confirmSubscription() {
+      try {
+        const firebaseUser = getFirebaseAuth().currentUser;
+        if (!firebaseUser || firebaseUser.uid !== sessionUserId) {
+          throw new Error("Inicia sesión de nuevo para confirmar tu suscripción.");
+        }
+        const response = await fetch("/api/stripe/subscription/confirm", {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${await firebaseUser.getIdToken()}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ sessionId }),
+        });
+        const result = await response.json() as { active?: boolean; error?: string };
+        if (cancelled) return;
+        if (!response.ok || !result.active) {
+          throw new Error(result.error || "No se pudo confirmar la suscripción.");
+        }
+        useApp.getState().setTab("home");
+        toastMsg("Suscripción confirmada. Tu plan y sus funciones ya están activos.");
+        currentUrl.searchParams.delete("subscription");
+        currentUrl.searchParams.delete("session_id");
+        window.history.replaceState({}, "", currentUrl.pathname + currentUrl.search + currentUrl.hash);
+      } catch (error) {
+        console.error("[stripe] Could not confirm subscription return.", error);
+        if (!cancelled) {
+          toastMsg(error instanceof Error ? error.message : "No se pudo confirmar la suscripción.");
+        }
+      }
+    }
+
+    void confirmSubscription();
+    return () => {
+      cancelled = true;
+    };
+  }, [isPending, session, toastMsg]);
+
+  useEffect(() => {
     if (!firebaseConfigured) return;
     return subscribeSharedClips(
       (docs) => useApp.getState().setRemote(docs),

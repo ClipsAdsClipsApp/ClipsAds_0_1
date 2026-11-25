@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { Check, LoaderCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getFirebaseAuth } from "@/lib/firebase/client";
@@ -87,6 +87,7 @@ export function SubscriptionPlans() {
 
     try {
       const auth = getFirebaseAuth();
+      await auth.authStateReady();
       const user = auth.currentUser;
       if (!user) {
         throw new Error("Por favor inicia sesión primero.");
